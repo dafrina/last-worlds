@@ -70,8 +70,9 @@ const RECORDED: Record<string, readonly [string, number, number, number]> = {
   // their walls, and the fortress carved into its mountain (['3af85d08b90c8e91', 85, 4, 332] between); then no walls on the
   // ascent's lower steps (['8578ac72245c27d7', 133, 4, 332] between), then none on the ascent, the peak behind it closer
   // (['66cf5bf8a038323f', 122, 4, 332] between); then Vesper's own walls on the mountain, one to a step, the ascent's back
-  // (['1583e98d186b3d32', 113, 4, 332] between, 19 November).
-  'khepri+arena': ['8010429d1a367f29', 626, 4, 238], 'luna+arena': ['3ab75c1157ea1659', 150, 4, 144], 'vesper+arena': ['44d4b25052150459', 196, 4, 332],
+  // (['1583e98d186b3d32', 113, 4, 332] between, 19 November); then the ground fitted to the remodel's seat
+  // (['44d4b25052150459', 196, 4, 332] between).
+  'khepri+arena': ['8010429d1a367f29', 626, 4, 238], 'luna+arena': ['3ab75c1157ea1659', 150, 4, 144], 'vesper+arena': ['47dceca28cfe424f', 200, 4, 332],
   // amnion+arena: THE CRADLE on its lowered crust terrace (17 November; its emergence canyon ['fd29dba2900c9d70', 405, 4, 238], its
   // brood basin ['920e5993df95c702', 325, 4, 238], then the plain settled plateau ['20a4b9ab47994205', 327, 4, 238] before).
   'nacre+arena': ['459e46b6b9fcdc14', 262, 4, 352], 'amnion+arena': ['973f54c333428511', 323, 4, 238], 'corona+arena': ['8135a9663edb2fff', 457, 4, 239],

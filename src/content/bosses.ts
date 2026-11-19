@@ -50,6 +50,12 @@ export interface BossDefinition {
   name: string;
   arrivesAt: number;
   approachEndsAt: number;
+  /**
+   * When its approach banner shows (campaign), if before `approachEndsAt`: a boss already standing in view as the scroll
+   * brings it in is announced before it comes on screen (HELION STRONGHOLD, 19 November). The encounters still end at
+   * `approachEndsAt`.
+   */
+  announceAt?: number;
   arrivalDuration: number;
   entryS: number;
   row: number;
@@ -176,7 +182,7 @@ export const BOSSES: Readonly<Record<BossId, BossDefinition>> = {
     // HELION STRONGHOLD (docs/17 §5, docs/43): a fortress in a mountain face, so it never moves (the flying HELION ARK swayed
     // and drifted until 17 November); its fight is the Ark's.
     id: 'ark', name: 'HELION STRONGHOLD', stationary: true, hiddenFire: HELION_ARK.terraceGuns,
-    arrivesAt: HELION_ARK.arrivesAt, approachEndsAt: HELION_ARK.approachEndsAt, arrivalDuration: HELION_ARK.arrivalDuration,
+    arrivesAt: HELION_ARK.arrivesAt, approachEndsAt: HELION_ARK.approachEndsAt, announceAt: HELION_ARK.announceAt, arrivalDuration: HELION_ARK.arrivalDuration,
     entryS: HELION_ARK.entryS, row: HELION_ARK.row, targetHeight: HELION_ARK.targetHeight,
     parts: {
       left: { x: -HELION_ARK.radiatorOffset, s: HELION_ARK.radiatorS, radius: HELION_ARK.radiatorRadius, hp: HELION_ARK.radiatorHp },

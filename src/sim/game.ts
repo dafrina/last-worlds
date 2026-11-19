@@ -175,6 +175,8 @@ function updateDirector(state: RunState): void {
   const boss = state.config.mode === 'campaign' ? missionBoss(state.config.mission) : null;
   if (boss) {
     if (state.time + 1e-8 >= boss.arrivesAt) { startBoss(state); return; }
+    // (A boss announced early holds its banner from then to its arrival, over other calls.)
+    if (boss.announceAt !== undefined && state.time >= boss.announceAt && !state.boss && state.message !== boss.messages.approach) setMessage(state, boss.messages.approach, 6);
     if (state.time + 1e-8 >= boss.approachEndsAt || state.nextEncounterAt >= boss.approachEndsAt) {
       if (state.time >= boss.approachEndsAt && !state.boss && state.message !== boss.messages.approach) setMessage(state, boss.messages.approach, 6);
       return;

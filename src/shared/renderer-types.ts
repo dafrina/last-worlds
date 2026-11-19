@@ -23,8 +23,7 @@ export interface PlanetLook {
      * World fog per level (user, 22 October): colour (sRGB hex) and its radiance, height fog [top, full at, amount] set in
      * the lower half of the level's terrain (measured heights), and distance haze [start, density, amount] within it.
      */
-    // (`aerial`: fog at every height from `[0]` to `[1]` units from the eye, up to `[2]`; off when absent.)
-    fog: { color: number; energy: number; height: [number, number, number]; distance: [number, number, number]; aerial?: [number, number, number] } };
+    fog: { color: number; energy: number; height: [number, number, number]; distance: [number, number, number] } };
   environment: 'desert' | 'ice' | 'luna' | 'mire' | 'void';
   /**
    * Look-dev only (the playground's toggle): 1 for a sun behind the ship (7:30), 0 ahead of it (10:30). The world's own

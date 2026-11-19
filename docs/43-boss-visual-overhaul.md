@@ -366,3 +366,14 @@ be the very rock the fortress is built in"; the original peaks are back.)
 | "some cliff rocks are very dark" (all of Vesper) | The ice walls' crack faces shaded as the ice. |
 | More far fog behind the mountain | Aerial fog at every height past the fight's view (`fog.aerial`, Vesper's look). |
 | The right cannon flying in from the bottom of the screen | A repeat run reused the last fight's cannon state (same start time); cleared while the fortress stands. |
+
+## HELION STRONGHOLD: the remodel (19 November)
+
+| Asked | Done |
+|---|---|
+| "rebuild the boss model ... use it as a stencil for your own optimized model ... Keep the current version" | boss_stronghold_remodel.py over the adapted model; both GLBs kept, `STRONGHOLD_MODEL` picks one (src/world/stronghold-seat.ts). |
+| "analyze its shapes" | Solid-shaded orthographic renders and cut sections of the stencil; each part built to them. |
+| Slanted shoulders, "pointed outward", "a slight arch but not that much" | Housings lofted through five measured sections: narrow at the front, widening back, the outer shoulder chamfer growing toward the back, the inner top corner cut toward the core. |
+| "keep the V in the center above the core" | The core block's front: two prongs, its middle set back, its top edge cut 45 degrees; with the housings' inner chamfers, a V round the emblem. |
+| The base "like the tripo model" | The stencil's own base under the terrace's top (`tripo_base`). |
+| Batteries "bigger and further towards the edge", "turned outwards", fanned | Three each side at the Tripo's positions, at the edge, 8, 22, 34 degrees. |

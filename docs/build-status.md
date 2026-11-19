@@ -1,5 +1,25 @@
 # Build status
 
+## HELION STRONGHOLD remodelled, its far fog reverted, its warning earlier (19 November 2026; docs/43)
+
+- **The remodel** (user: "rebuild the boss model how we did it for the other bosses, use it as a stencil for your own
+  optimized model ... Keep the current version so we can easily switch back"): tools/blender/boss_stronghold_remodel.py
+  builds `public/assets/vesper/helion-stronghold-remodel.glb` over the adapted model (boss_stronghold.py, its GLB kept).
+  Above the terrace each part is clean solids at the same origins and node names, built to the stencil's measured sections
+  (solid-shaded orthographic renders and cut sections: the V core block, the housings lofted through five sections, the
+  gate, the roof's tiers), with the stencil's base colour and roughness/metal baked on (no normals: its sculpt noise stays
+  out). Under the terrace's top the base is the stencil's own (`tripo_base`), after built rock, crags and two layouts of
+  Vesper's ice-wall kit were rejected. Gun batteries bigger, at the terrace's edge, fanned out (8, 22, 34 degrees). 24.4k
+  triangles (79k adapted); every rig ray check passes.
+- **Switching back:** `STRONGHOLD_MODEL` in src/world/stronghold-seat.ts, beside each model's seat table (the ground fits
+  the one that ships); `?stronghold=adapted|remodel` swaps only the drawn model. The ground along the fortress's outer sides
+  buries to the highest top just past the nearest (`rim`), for the remodel's ragged edge.
+- **The far fog reverted** (user: a hard dark band shortly before the boss on the phone, "pretty sure its the new fog"):
+  the aerial fog of 18 November is gone; on phones the depth precision at 62-90 units stepped it into a band.
+- **The warning earlier:** the approach banner from 180.5 (`announceAt`) and the last shield cell at 178 (185), before the
+  fortress shows (about 182); the encounters still end at 188.5.
+- **Checks:** typecheck, 1152 unit tests, build; browser suite: see below. No phone test.
+
 ## HELION STRONGHOLD's scene cleaned up, and the cannon fly-in fixed (18-19 November 2026; docs/43)
 
 The user, after playing `b967a6d`, said it is "very messy somehow, too much going on". They kept the big cliffs and the

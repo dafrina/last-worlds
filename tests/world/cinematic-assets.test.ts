@@ -94,7 +94,8 @@ describe('Blender cinematic asset contracts',()=>{
     // HELION STRONGHOLD (17 November) adapts the user's fortress GLB (tools/blender/boss_stronghold.py): the cannon housings
     // with their guns, wrecks, the radar, the reactor chamber and its reactor behind the blast door's two leaves, markers. (Grown
     // 1.15 the same day, about 12.9 wide: the user's "the stronghold needs to be slightly bigger".)
-    { id:'ark', prefix:'stronghold', core:'stronghold_core', width:{ e1:13.3 },
+    // (The remodel since 19 November, r6: clean solids over the adapted model, the Tripo base under its terrace.)
+    { id:'ark', prefix:'stronghold', core:'stronghold_core', width:{ e1:13.3, r6:13.3 },
       parts:['stronghold_gun_left','stronghold_gun_right','stronghold_cannon_left_wreck','stronghold_cannon_right_wreck','stronghold_gun_left_wreck',
         'stronghold_gun_right_wreck','stronghold_core_wreck','stronghold_radar','stronghold_chamber','stronghold_muzzle_left','stronghold_muzzle_right',
         'stronghold_bay_left','stronghold_bay_right','stronghold_core_aim','stronghold_vent_0'],
@@ -124,7 +125,9 @@ describe('Blender cinematic asset contracts',()=>{
       for(const material of Array.isArray(object.material)?object.material:[object.material]){
         if (remodel && /glow|jet/i.test(material.name)) continue; // emissive heat, lamps and thruster jets stay untextured
         expect(material.map,'albedo texture').toBeTruthy();
-        expect(material.normalMap,'surface normals').toBeTruthy();
+        // (HELION STRONGHOLD's remodel bakes no normals by design: the stencil's sculpt noise stays out of its clean surfaces,
+        // tools/blender/boss_stronghold_remodel.py.)
+        if (!(spec.id === 'ark' && remodel && material.name === 'stronghold_surface_remodel')) expect(material.normalMap,'surface normals').toBeTruthy();
         expect(material.roughnessMap,'roughness variation').toBeTruthy();
         expect(material.metalnessMap,'metallic variation').toBeTruthy();
       }

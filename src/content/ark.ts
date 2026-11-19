@@ -9,12 +9,18 @@ import { OVERLOAD_FRACTION } from './boss-phases';
 export const HELION_ARK = {
   arrivesAt: 190,
   /**
-   * No approach cue is admitted at or after this time: authored relief before the Ark. Its approach banner shows from here
-   * to the arrival (THE MOUNTAINS AHEAD · THE STRONGHOLD WAKES, src/sim/game.ts): 188.5 since 18 November (user: "for
-   * stationary its so sudden"; 190 before, the arrival itself, so the campaign never showed it), just after Cold Vector's
-   * closing relief (188 s) and the last shield cell's call (185 + 2.5 s).
+   * No approach cue is admitted at or after this time: authored relief before the Ark, just after Cold Vector's closing
+   * relief (188 s). (Its approach banner showed from here from 18 November, user: "for stationary its so sudden"; 190
+   * before, the arrival itself, so the campaign never showed it. It shows from `announceAt` since 19 November.)
    */
   approachEndsAt: 188.5,
+  /**
+   * Its approach banner shows from here, before the fortress comes on screen (its top shows from about 182 as the scroll
+   * slows into its arena), and stays to the arrival. User, 19 November: "that message and the shield drop should appear
+   * earlier ... the feel that the boss is coming via shield drop and the message that something is coming still just happens
+   * when the boss is already on screen" (188.5 before, with the last shield cell at 185). Its encounters still end at 188.5.
+   */
+  announceAt: 180.5,
   /**
    * Its arrival is its awakening (src/render/stronghold-view.ts AWAKEN): it already stands in its mountain, dormant, as the
    * scroll stops. 4 s since 18 November (user: "Usually the boss walks in but for stationary its so sudden"; 3.5 before, the
@@ -82,5 +88,6 @@ export const HELION_ARK = {
     sway: 0, swayRate: 0.3, surge: 0, surgeRate: 0.22,
     platform: { from: -9, to: 35 },
   },
-  shieldSupplies: { relaxed: [50, 143, 185], standard: [50, 143, 185], veteran: [143, 185] },
+  // (The last cell at 178, its call over by 180.5, before the fortress shows and its banner; 185 until 19 November.)
+  shieldSupplies: { relaxed: [50, 143, 178], standard: [50, 143, 178], veteran: [143, 178] },
 } as const;

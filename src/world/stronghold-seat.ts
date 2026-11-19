@@ -1,12 +1,21 @@
 /**
- * HELION STRONGHOLD's seat (docs/17 §4): the top of its model (public/assets/vesper/helion-stronghold.glb without its guns),
+ * HELION STRONGHOLD's seat (docs/17 §4): the top of its model (STRONGHOLD_MODEL's GLB without its guns),
  * measured by casting straight down every quarter unit with the model at its seat, as world height. Row j is arena-relative
  * s `SEAT_A + j · SEAT_STEP`, character i is x `−SEAT_X + i · SEAT_STEP`: height (code − 48) / 10 − 4, or '.' where nothing
  * is. The terrain fits the ground to it (src/world/terrain-vesper.ts); tests/world/stronghold-projection.test.ts measures
- * the model again and holds the table to it, so a rebuilt model that moves re-records it.
+ * the model again and holds the table to it, so a rebuilt model that moves re-records it. One table per model, so the
+ * ground fits whichever ships.
  */
+/**
+ * Which of its models ships (user, 19 November 2026: "rebuild the boss model ... Keep the current version so we can easily
+ * switch back"): the clean remodel (tools/blender/boss_stronghold_remodel.py, helion-stronghold-remodel.glb) or the user's
+ * fortress GLB adapted (boss_stronghold.py, helion-stronghold.glb). The renderer loads it (src/render/boss-assets.ts) and the
+ * terrain fits its seat; `?stronghold=` switches only the drawn model, for a comparison.
+ */
+export type StrongholdModel = 'remodel' | 'adapted';
+export const STRONGHOLD_MODEL: StrongholdModel = 'remodel';
 export const SEAT_A = 20.25, SEAT_X = 7.25, SEAT_STEP = 0.25;
-export const SEAT_ROWS: readonly string[] = [
+const SEAT_ROWS_ADAPTED: readonly string[] = [
   '...........................................................',
   '...........................................................',
   '...........................................................',
@@ -54,3 +63,52 @@ export const SEAT_ROWS: readonly string[] = [
   '...........................................................',
   '...........................................................',
 ];
+const SEAT_ROWS_REMODEL: readonly string[] = [
+  '...........................................................',
+  '...........................................................',
+  '...........................................................',
+  '...........................................................',
+  '...........................................................',
+  '...........................................................',
+  '...........................................................',
+  '...........................................................',
+  '...........................................................',
+  '...........................................................',
+  '...........................................................',
+  '...........................................................',
+  '...................###$................#$...#((&&.....&&...',
+  '..................#%$%%%..............#%%%&#$(++,,,.,(-/...',
+  '..................#%%&&&%$...........*.%&\'\'\'\'(,,-../033....',
+  '..............*+,*,,&&&&&%%.......*..-.8333((83,-./123.....',
+  '.............$*,,--.-&\'\'\'(\'%..#&)*+-004843346643368423.....',
+  '...........$%&*,.38./4\'\'())(%#$&)+,-0.6864348843388644.....',
+  '.......\'\'*%&333,34844.422+++++++++222.686334684336844......',
+  '...&%\'\')**3844,,34884.4456+++++++6544.44433333334...4......',
+  '...&((4844,886JKKI884.679:,,,;,,,:9763333IKKJ43344444......',
+  '...&()4884-686MNNNMMI479;<=======<;97.IMMNNNM44444444......',
+  '...\')4488434>>MNNNNNKG9;<<=======<<;9GKNNNNNM>>444444......',
+  '...()444444>>>MNNNNNMI>+FG=======GF+>IMNNNNNM>>>44444......',
+  '...*444.44>>>LNNNNNNNKH+IJG==D==GJI+HLNNNNNNNM>>>44444.....',
+  '...4444444>>MNNNNNNNNMI+JMMIQQQIMMJ+IMNNNNNNNNM>>4444......',
+  '...)444444>>LNNNNNNNNMI+JMMMQQQMMMJ+IMNNNNNNNNL>>4444......',
+  '...(44444.>HKNNNOONNNMI+JMMMQQQMMMJ+IMNNNOONNNLH>444.......',
+  '...(,444..OOOOOOOORRRRRROOOOQQQOOOORRRRRROOOOOOOO?44.......',
+  '......44..OOOOOOOOTTTTTTOOOOQQQOOOOTTTTTTQOOOOOOO?:4.......',
+  '...........OPOOOOOVVVVVVPOOORRROOOPVVVVVVTPOOOPO@=8........',
+  '...........OPOOOOOTTTTTTTOOOTTTOOOTTTTTTTTTOOOOO@;5........',
+  '............OOOOOTTTTTTTTOOOUUUOOOTTTTTTTTTTOOO@>9.........',
+  '............OOOYYTTTTTTTYYT[[[[[TYYTTTTTTTTTOO?@<6.........',
+  '.............OT[[[TTTTTTYY[[[[[[]YYTTTTTTVhVOO@@94.........',
+  '...........OOO____TTTTTTTT[[[[[[]TTTTTTTTTVTO@@=7..........',
+  '...........OOOTYYUUUUUUUTT[[[[[[]TTTUUUTUUUTO@@;5..........',
+  '...........OOOOOUUUUUUUUTT[T[[[T]TTTUUUVUUUT?@?8/..........',
+  '...........OOOOOUUUUUUUUXX[XXXXX]XXTTTTVTTTTO@<60..........',
+  '...........OOOOVVTTUUUTTXX[XXXXX]XXTTTTTTTTTO@:40..........',
+  '...........OOOOVVTTUUUTTXXXXXXXX]XXTTTTTTTTT@>7/$..........',
+  '...........OOOOVVTTTTTTTXXXXXXXXXXXTTTTTTTTO@;5............',
+  '...........OOOOOTTTTTTTTTTTTTTTTTTTTTTTTTO..?9%............',
+  '.............*.......................%+.//.(...............',
+  '...........................................................',
+  '...........................................................',
+];
+export const SEAT_ROWS: readonly string[] = STRONGHOLD_MODEL === 'remodel' ? SEAT_ROWS_REMODEL : SEAT_ROWS_ADAPTED;

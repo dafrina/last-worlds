@@ -8,7 +8,7 @@ import { orbitalRadius } from '../sim/orbital';
 import { HERO_STENCIL } from './hero-stencil';
 import { drawnShot, launchFrom, type Launch } from './shot-launch';
 import * as THREE from 'three';
-import { BOSS_ASSETS } from './boss-assets';
+import { BOSS_ASSETS, STRONGHOLD_MODELS } from './boss-assets';
 import { createFacilityView } from './facility-view';
 import { createSiteView } from './site-view';
 import { VIEW, type Enemy, type EnemyKind, type GameRenderer, type GraphicsQuality, type Projectile, type RunState } from '../shared/contracts';
@@ -268,9 +268,7 @@ const LOOKS: Record<PlanetId, PlanetLook> = {
       haze: [.82, .9, .98, .155],
       // The user's playground fog (23 October): a pale low mist over the sea and down the cliffs, the shelves clear. (Its
       // heights follow Vesper's level down, 3.75 since 18 November: VESPER_DROP.)
-      // (Aerial fog: everything far beyond the fight fades, the peaks behind HELION STRONGHOLD included; 18 November. It starts
-      // past the fight's view, whose top edge lies 57-61 units from the eye, so no enemy in play is hazed.)
-      fog: { color: 0xc4d8ea, energy: 1.09, height: [-6.05, -12.8, .24], distance: [40.5, .041, .12], aerial: [62, 90, .6] } },
+      fog: { color: 0xc4d8ea, energy: 1.09, height: [-6.05, -12.8, .24], distance: [40.5, .041, .12] } },
     environment: 'ice',
   },
   // Luna, Khepri's moon (docs/19): a low hard white sun over grey regolith, long crisp crater shadows, a black sky and
@@ -679,8 +677,6 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     settings.fogColor.value.setHex(fog.color).multiplyScalar(fog.energy);
     settings.fogHeight.value.set(fog.height[0], fog.height[1], fogOff ? 0 : fog.height[2]);
     settings.fogDistance.value.set(fog.distance[0], fog.distance[1], fogOff ? 0 : fog.distance[2]);
-    const aerial = fog.aerial ?? [0, 1, 0];
-    settings.fogAerial.value.set(aerial[0], aerial[1], fogOff ? 0 : aerial[2]);
     renderer.toneMappingExposure = look.lowExposure;
     // Low-tier silhouettes keep the share of light the High shadow leaves (src/render/craft-shadows.ts).
     const shadowLight = { ...look, sunElevation: next === 'khepri' && look.sunElevation === KHEPRI_SUN_ELEVATION ? THREE.MathUtils.radToDeg(SUN_ELEVATION) : look.sunElevation };
@@ -1219,7 +1215,9 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
     let once: Promise<void> | undefined;
     return () => once ??= load().then(model => { if (!disposed) { apply(model); warmed = false; } }).catch(error => console.warn(unavailable, error));
   };
-  const bossAsset = (id: keyof typeof BOSS_ASSETS) => `${import.meta.env.BASE_URL}assets/${BOSS_ASSETS[id]}`;
+  // (`?stronghold=adapted|remodel`: HELION STRONGHOLD's other model, for a comparison.)
+  const strongholdModel = query.get('stronghold') as keyof typeof STRONGHOLD_MODELS | null;
+  const bossAsset = (id: keyof typeof BOSS_ASSETS) => `${import.meta.env.BASE_URL}assets/${id === 'ark' && strongholdModel && strongholdModel in STRONGHOLD_MODELS ? STRONGHOLD_MODELS[strongholdModel] : BOSS_ASSETS[id]}`;
   /** WARDEN-1 loads with Luna, THE VEIL with Nacre, THE CRADLE with Amnion, THE HELIOPHAGE with Corona, THE ECLIPSE with Umbra. */
   const ensureWarden = lazyAsset(() => loadWardenModel(bossAsset('warden')), model => warden.setModel(model), 'WARDEN-1 model unavailable; using the code-built stand-in.');
   const ensureVeil = lazyAsset(() => loadCarrierModel(bossAsset('veil')), model => veil.setModel(model), 'THE VEIL model unavailable; using the code-built stand-in.');

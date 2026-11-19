@@ -304,7 +304,7 @@ export const STRONGHOLD_LEDGE = { front: lifted(STRONGHOLD.front), half: STRONGH
  * there, covering the cut faces, and climbs from it).
  */
 const SEAT_REACH = 4.5;
-let seat: { under: Float32Array; edge: Float32Array; high: Float32Array; reach: Float32Array; inner: Float32Array; columns: number; rows: number; x0: number; a0: number } | null = null;
+let seat: { under: Float32Array; edge: Float32Array; high: Float32Array; rim: Float32Array; reach: Float32Array; inner: Float32Array; columns: number; rows: number; x0: number; a0: number } | null = null;
 function seatField() {
   if (seat) return seat;
   const rows = SEAT_ROWS.length, columns = SEAT_ROWS[0].length, top = new Float32Array(rows * columns).fill(NaN);
@@ -314,7 +314,7 @@ function seatField() {
   }
   // The field covers the table and SEAT_REACH round it.
   const pad = Math.round(SEAT_REACH / SEAT_STEP), fc = columns + 2 * pad, fr = rows + 2 * pad;
-  const under = new Float32Array(fc * fr).fill(NaN), edge = new Float32Array(fc * fr), high = new Float32Array(fc * fr), inner = new Float32Array(fc * fr), reach = new Float32Array(fc * fr).fill(Infinity);
+  const under = new Float32Array(fc * fr).fill(NaN), edge = new Float32Array(fc * fr), high = new Float32Array(fc * fr), rim = new Float32Array(fc * fr), inner = new Float32Array(fc * fr), reach = new Float32Array(fc * fr).fill(Infinity);
   const sites: number[] = [];
   for (let j = 0; j < rows; j++) for (let i = 0; i < columns; i++) if (!Number.isNaN(top[j * columns + i])) sites.push(i, j);
   // A gap inside the model's outline (model on both sides of it along its row and its column: between the roof and a
@@ -333,7 +333,7 @@ function seatField() {
         if (defined(ti + di, tj + dj)) { const h = top[(tj + dj) * columns + ti + di]; low = Math.min(low, h); near = Math.max(near, h); }
       }
       // (Never under the sea: the model's front stands on it, open underneath.)
-      under[at] = Math.max(low - 0.3, STRONGHOLD_BUILT_SEA + 0.15); edge[at] = high[at] = defined(ti, tj) ? top[tj * columns + ti] : near; reach[at] = 0;
+      under[at] = Math.max(low - 0.3, STRONGHOLD_BUILT_SEA + 0.15); edge[at] = high[at] = rim[at] = defined(ti, tj) ? top[tj * columns + ti] : near; reach[at] = 0;
       // (`inner`: how far in from the model's outline, out to a unit.)
       let d = 1;
       for (let dj = -4; dj <= 4; dj++) for (let di = -4; di <= 4; di++) {
@@ -349,25 +349,28 @@ function seatField() {
     }
     // (`high`: the highest top within a unit past the nearest, so a notch in the model's edge leaves no notch in the rock.)
     if (reach[at] < Infinity) for (let k = 0; k < sites.length; k += 2) {
-      if (Math.hypot(sites[k] - ti, sites[k + 1] - tj) * SEAT_STEP < reach[at] + 1) high[at] = Math.max(high[at] || -Infinity, top[sites[k + 1] * columns + sites[k]]);
+      const d = Math.hypot(sites[k] - ti, sites[k + 1] - tj) * SEAT_STEP, h = top[sites[k + 1] * columns + sites[k]];
+      if (d < reach[at] + 1) high[at] = Math.max(high[at] || -Infinity, h);
+      // (`rim`: the highest top within 0.3 past the nearest: a ragged edge, the remodel's, buries to its higher cells.)
+      if (d < reach[at] + .3) rim[at] = Math.max(rim[at] || -Infinity, h);
     }
   }
-  return seat = { under, edge, high, reach, inner, columns: fc, rows: fr, x0: -SEAT_X - pad * SEAT_STEP, a0: SEAT_A - pad * SEAT_STEP };
+  return seat = { under, edge, high, rim, reach, inner, columns: fc, rows: fr, x0: -SEAT_X - pad * SEAT_STEP, a0: SEAT_A - pad * SEAT_STEP };
 }
 /**
  * The seat at a point (arena-relative s): `under` the ground's ceiling under the model (NaN off it), `edge` the nearest
  * top of the model, `high` the highest top about it, and `reach` the distance to it (Infinity beyond SEAT_REACH); `inner`
  * how far in from the model's outline a point on it lies (to a unit).
  */
-function seatAt(x: number, a: number): { under: number; edge: number; high: number; reach: number; inner: number } {
+function seatAt(x: number, a: number): { under: number; edge: number; high: number; rim: number; reach: number; inner: number } {
   const f = seatField(), u = (x - f.x0) / SEAT_STEP, v = (a - f.a0) / SEAT_STEP;
-  if (u < 0 || v < 0 || u > f.columns - 1 || v > f.rows - 1) return { under: NaN, edge: 0, high: 0, reach: Infinity, inner: 0 };
+  if (u < 0 || v < 0 || u > f.columns - 1 || v > f.rows - 1) return { under: NaN, edge: 0, high: 0, rim: 0, reach: Infinity, inner: 0 };
   const i = Math.min(f.columns - 2, Math.floor(u)), j = Math.min(f.rows - 2, Math.floor(v)), fu = u - i, fv = v - j;
   const at = j * f.columns + i, corners = [at, at + 1, at + f.columns, at + f.columns + 1], weights = [(1 - fu) * (1 - fv), fu * (1 - fv), (1 - fu) * fv, fu * fv];
-  let under = 0, edge = 0, high = 0, reach = 0, inner = 0;
+  let under = 0, edge = 0, high = 0, rim = 0, reach = 0, inner = 0;
   // (A corner that carries no weight is left out, to rounding: off the model its `under` is NaN.)
-  for (let k = 0; k < 4; k++) if (weights[k] > 1e-6) { under += f.under[corners[k]] * weights[k]; edge += f.edge[corners[k]] * weights[k]; high += f.high[corners[k]] * weights[k]; inner += f.inner[corners[k]] * weights[k]; reach += Math.min(f.reach[corners[k]], SEAT_REACH + 1) * weights[k]; }
-  return { under, edge, high, inner, reach: reach > SEAT_REACH ? Infinity : reach };
+  for (let k = 0; k < 4; k++) if (weights[k] > 1e-6) { under += f.under[corners[k]] * weights[k]; edge += f.edge[corners[k]] * weights[k]; high += f.high[corners[k]] * weights[k]; rim += f.rim[corners[k]] * weights[k]; inner += f.inner[corners[k]] * weights[k]; reach += Math.min(f.reach[corners[k]], SEAT_REACH + 1) * weights[k]; }
+  return { under, edge, high, rim, inner, reach: reach > SEAT_REACH ? Infinity : reach };
 }
 /** Units outside the fortress's plan (x and arena-relative s in the built frame; negative inside it). */
 function fortressOutside(x: number, a: number): number {
@@ -645,7 +648,9 @@ export function strongholdGround(arena: TerrainArena | undefined, seed: number, 
     } else cap = slope;
     // (Never down to the sea round it.)
     // (At the edge's own height, not with the rise over it: with it, it held a lip 0.8 over the roof's back, 18 November.)
-    bury = Math.max(fit.reach < 0.6 ? liftedHeight(fit.edge) + 0.05 : -Infinity, SEA + 0.25);
+    // (Along its outer sides to the highest top just past the nearest, `rim`: the remodel's ragged edge there showed its
+    // cut faces between higher cells. Before it the nearest top, so the ground before its barrels stays low.)
+    bury = Math.max(fit.reach < 0.6 ? liftedHeight(bax > 5.8 ? fit.rim : fit.edge) + 0.05 : -Infinity, SEA + 0.25);
   }
   // Carved into its mountain (user, 18 November, later: "the top of the fortress should be seamless against where it
   // connects to the mountain behind it, so it looks like a bunker built in or carved from the mountain and not a model just
