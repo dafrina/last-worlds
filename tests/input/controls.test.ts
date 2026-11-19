@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { DRAG_DEAD, DRAG_RESPONSE, createControlState, dragSteer } from '../../src/input/controls';
+import { DRAG_DEAD, DRAG_RESPONSE, createControlState, dragSteer, followTarget } from '../../src/input/controls';
+import { VIEW } from '../../src/shared/contracts';
+import { createRun, stepRun } from '../../src/sim/game';
 
 describe('pointer and keyboard ownership', () => {
   it('ignores a repeated pointer-down for a pointer that is already held', () => {
@@ -133,5 +135,56 @@ describe('drag steering (relative to the first touch, user 15 November)', () => 
     expect(dragSteer(-DRAG_RESPONSE * 2, 0)).toBe(-1);
     expect(dragSteer(DRAG_DEAD / 2, 0)).toBe(0);
     expect(dragSteer(DRAG_RESPONSE / 2, 0)).toBeCloseTo(.5);
+  });
+});
+
+describe('follow steering (the finger\'s own x at normal speed, user 19 November)', () => {
+  // A 400 px wide surface at x 0: the finger's share across it is px / 400.
+  const at = (cameraX: number) => ({ worldPerPx: 0.05, worldAt: (px: number) => followTarget(px / 400, cameraX) });
+
+  it('targets the world x under the finger, wherever the ship was at touch-down', () => {
+    const input = createControlState();
+    input.dragDown(1, 200, -3, true); // the centre of the screen, the ship 3 left of it
+    expect(input.sample({ shipX: -3, ...at(0) }).horizontal).toBe(1);
+    expect(input.sample({ shipX: 0, ...at(0) }).horizontal).toBe(0);
+    input.dragMove(1, 100); // a quarter across: left of the centre
+    expect(followTarget(.25, 0)).toBeLessThan(-2);
+    expect(input.sample({ shipX: 0, ...at(0) }).horizontal).toBe(-1);
+    input.pointerUp(1);
+    expect(input.sample({ shipX: 0, ...at(0) }).horizontal).toBe(0);
+  });
+
+  it('spans the view at the ship\'s row and reaches past the ship\'s limit at the camera\'s', () => {
+    expect(followTarget(.5, 0)).toBe(0);
+    expect(followTarget(1, 0)).toBeCloseTo(-followTarget(0, 0));
+    const cameraLimit = (VIEW.worldWidth - VIEW.width) / 2, shipLimit = VIEW.worldWidth / 2 - VIEW.playerRadius;
+    expect(followTarget(1, cameraLimit)).toBeGreaterThanOrEqual(shipLimit);
+    expect(followTarget(0, -cameraLimit)).toBeLessThanOrEqual(-shipLimit);
+  });
+
+  // Fixed speed: the ship never outruns its usual handling, settles under a finger inside the camera's dead zone, and a
+  // finger held near the edge carries it (and the camera) to the map's side.
+  const fly = (share: number, seconds: number) => {
+    const state = createRun({ mode: 'endless', ship: 'scrapper', seed: 3 }), input = createControlState();
+    input.dragDown(1, share * 400, state.player.x, true);
+    let fastest = 0;
+    for (let t = 0; t < seconds * 60; t++) {
+      const frame = input.sample({ shipX: state.player.x, ...at(state.cameraX) });
+      stepRun(state, frame); fastest = Math.max(fastest, Math.abs(state.player.vx));
+    }
+    return { state, fastest };
+  };
+  it('settles under a finger near the middle at no more than the normal top speed', () => {
+    const halves = createRun({ mode: 'endless', ship: 'scrapper', seed: 3 });
+    for (let t = 0; t < 30; t++) stepRun(halves, { horizontal: 1, specialPressed: false, pausePressed: false });
+    expect(Math.abs(halves.player.vx)).toBeGreaterThan(5);
+    const { state, fastest } = fly(.65, 2);
+    expect(Math.abs(state.player.x - followTarget(.65, state.cameraX))).toBeLessThan(DRAG_DEAD + .02);
+    expect(fastest).toBeLessThanOrEqual(Math.abs(halves.player.vx) + 1e-9);
+  });
+  it('carries the ship to the map side under a finger held at the edge', () => {
+    const { state } = fly(.97, 6);
+    expect(state.player.x).toBeGreaterThan(VIEW.worldWidth / 2 - 1.5);
+    expect(state.cameraX).toBeCloseTo((VIEW.worldWidth - VIEW.width) / 2);
   });
 });

@@ -1450,6 +1450,13 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   // slug kicks the hero back a touch.
   const railTrails = new Map<number, { x0: number; s0: number; x: number; s: number; endedAt?: number; struck?: boolean }>();
   let railKickAt = -1, railTick = -1;
+  // The ship's bolts (Twin Pulse, Fan, Seeker): the simulation removes one as it touches its target's hit circle, up to
+  // 1.35 short of the target's centre, so it seemed to stop short (user, 20 November: "Sure", to drawing each hit shot
+  // one last tick at the point it struck). Render only: tracked from tick to tick, a bolt that vanishes beside a target
+  // is drawn for one more tick carried on toward the target's centre. The hit and its timing stay the simulation's.
+  const boltTrack = new Map<number, { x: number; s: number; vx: number; vs: number; radius: number }>();
+  const boltGhosts: { x: number; s: number; vx: number; vs: number; at: number }[] = [];
+  let boltTick = -1;
   // Gameplay-shaped rings stay (shockwave radius, shield break, pickup, burst marker); fx adds the cosmetic layer.
   // Flat rings face the camera one way only, so the single pass draws exactly what three.js's two passes over a transparent
   // double-sided material drew (back faces: none), in half the draws (mobile performance pass, 3 November). So does the
@@ -2227,6 +2234,29 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
         heroClimb > 0 ? planeZAtScreenY(camera, VIEW.flightHeight + .035 + heroClimb, .975) : trailEndZ, trailSegment);
       const [hostileHex] = hostileHues(planet);
       wallShots.length = 0;
+      if (state.tick < boltTick) { boltTrack.clear(); boltGhosts.length = 0; }
+      if (state.tick !== boltTick) {
+        boltTick = state.tick;
+        const now = new Set<number>();
+        for (const sim of state.projectiles) if (sim.friendly && !sim.special && !sim.pierced && !sim.delay) now.add(sim.id);
+        for (const [id, bolt] of boltTrack) {
+          if (now.has(id)) continue;
+          const speed = Math.hypot(bolt.vx, bolt.vs) || 1, dx = bolt.vx / speed, ds = bolt.vs / speed;
+          for (const enemy of state.enemies) {
+            if (enemy.damageable === false) continue;
+            const ex = enemy.x - bolt.x, es = enemy.s - bolt.s;
+            // Within its target's hit circle after one more tick of travel (and a little slack).
+            if (Math.hypot(ex, es) > enemy.radius + bolt.radius + speed / 60 + .15) continue;
+            // On along its own heading until its tip (a bolt is about .3 to its tip) reaches the target's centre line.
+            const on = Math.max(0, Math.min(1.6, ex * dx + es * ds - .3));
+            boltGhosts.push({ x: bolt.x + dx * on, s: bolt.s + ds * on, vx: bolt.vx, vs: bolt.vs, at: state.time });
+            break;
+          }
+        }
+        boltTrack.clear();
+        for (const sim of state.projectiles) if (now.has(sim.id)) boltTrack.set(sim.id, { x: sim.x, s: sim.s, vx: sim.vx, vs: sim.vs, radius: sim.radius });
+        for (let i = boltGhosts.length - 1; i >= 0; i--) if (state.time - boltGhosts[i].at > 1e-6) boltGhosts.splice(i, 1);
+      }
       for (const sim of state.projectiles) {
         // A held shot that shows before it flies (a Skimmer's split, a Fracture Wave's wall, docs/39): a harmless glint,
         // pulsing and growing until it leaves.
@@ -2295,6 +2325,15 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           }
           // Known moving threats keep world trajectories; panning reveals these edge chevrons.
         }
+      }
+      // Bolts that struck this tick, drawn once more where they struck (above).
+      for (const ghost of boltGhosts) {
+        if (friendlyCount >= friendly.instanceMatrix.count) break;
+        transform.position.set(ghost.x, VIEW.flightHeight + .04 + heroClimb, -ghost.s);
+        transform.rotation.set(0, Math.atan2(ghost.vx, -ghost.vs), 0);
+        transform.scale.set(.1 * heat.grow, .05, .36 * heat.grow); transform.updateMatrix(); friendlyGlow.setMatrixAt(friendlyCount, transform.matrix);
+        if (brightGround) { transform.scale.set(.09 * heat.grow, .05, .345 * heat.grow); transform.updateMatrix(); friendlyOutline.setMatrixAt(friendlyCount, transform.matrix); }
+        transform.scale.set(.045 * heat.grow, .045, .27 * heat.grow); transform.updateMatrix(); friendly.setMatrixAt(friendlyCount++, transform.matrix);
       }
       wallShots.sort((p, q) => p.s - q.s || p.x - q.x);
       for (let i = 1; i < wallShots.length; i++) {

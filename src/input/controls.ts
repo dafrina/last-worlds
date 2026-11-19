@@ -1,4 +1,5 @@
 import { VIEW, type GameInput, type InputFrame } from '../shared/contracts';
+import { LENS_FOLLOW, lensRowHalfWidth } from '../shared/lens';
 import type { TiltSource } from './tilt';
 
 export type PointerRole = 'left' | 'right' | 'special' | 'drag';
@@ -19,14 +20,28 @@ export function dragSteer(target: number, shipX: number): number {
 }
 
 /**
+ * Follow steering (Settings → Steering → Follow; user, 19 November 2026: "The ship basically follows the touch
+ * horizontally ... Just add the fixed speed touch control"). A held finger's target is the world x under it at the
+ * ship's row, through the release lens (src/shared/lens.ts), and the ship heads there with dragSteer: its usual top
+ * speed and acceleration, never faster. The camera follows the ship, so a finger held further out than the camera's
+ * dead zone keeps the ship travelling that way until the camera stops at the map's edge.
+ */
+const ROW_HALF_WIDTH = lensRowHalfWidth();
+/** The world x under a finger `share` of the way across the play surface (0 its left edge, 1 its right). */
+export function followTarget(share: number, cameraX: number): number {
+  return cameraX * LENS_FOLLOW + (2 * share - 1) * ROW_HALF_WIDTH;
+}
+
+/**
  * Pointer roles are assigned at pointer-down. Holding the left half of the play surface steers left, the right half
  * steers right (user decision, 21 October 2026, back from steering relative to the ship). A held steering finger that
  * slides across the middle switches direction (user decision, 14 October); the special button's pointer never steers.
  */
 export function createControlState() {
   const pointers = new Map<number, PointerRole>();
-  /** Drag pointers: where the finger touched down and is now (screen px), and the ship's x at touch-down. */
-  const drags = new Map<number, { startPx: number; px: number; shipX: number }>();
+  /** Drag pointers: where the finger touched down and is now (screen px), the ship's x at touch-down, and whether it
+   *  follows the finger's own position (Follow) rather than its travel (Drag). */
+  const drags = new Map<number, { startPx: number; px: number; shipX: number; follow: boolean }>();
   const keys = new Set<string>();
   let specialPressed = false;
   let pausePressed = false;
@@ -40,10 +55,11 @@ export function createControlState() {
       pointers.set(id, role);
       if (role === 'special') specialPressed = true;
     },
-    /** A drag pointer: the first one held steers; it remembers the ship's x at touch-down (null: no flight, no drag). */
-    dragDown(id: number, px: number, shipX: number | null) {
+    /** A drag pointer: the first one held steers; it remembers the ship's x at touch-down (null: no flight, no drag).
+     *  `follow`: it steers to the world x under the finger (Follow) instead of by the finger's travel (Drag). */
+    dragDown(id: number, px: number, shipX: number | null, follow = false) {
       if (pointers.has(id) || shipX === null) return;
-      pointers.set(id, 'drag'); drags.set(id, { startPx: px, px, shipX });
+      pointers.set(id, 'drag'); drags.set(id, { startPx: px, px, shipX, follow });
     },
     dragMove(id: number, px: number) { const drag = drags.get(id); if (drag) drag.px = px; },
     /** A drag finger is held (the only time drag steering needs the ship's x and the surface's width). */
@@ -66,14 +82,18 @@ export function createControlState() {
     },
     keyUp(code: string) { keys.delete(code); },
     activateSpecial() { specialPressed = true; },
-    /** `drag`: the ship's x now and world units per screen pixel, for a held drag pointer (keys win over it). */
-    sample(drag?: { shipX: number; worldPerPx: number }): InputFrame {
+    /** `drag`: the ship's x now and world units per screen pixel, for a held drag pointer (keys win over it), and for a
+     *  Follow pointer the world x under a screen px. */
+    sample(drag?: { shipX: number; worldPerPx: number; worldAt?: (px: number) => number }): InputFrame {
       const roles = [...pointers.values()];
       const left = roles.includes('left') || leftKeys.some((key) => keys.has(key));
       const right = roles.includes('right') || rightKeys.some((key) => keys.has(key));
       let horizontal = left === right ? 0 : left ? -1 : 1;
       const held = drags.values().next().value;
-      if (!left && !right && held && drag) horizontal = dragSteer(held.shipX + (held.px - held.startPx) * drag.worldPerPx, drag.shipX);
+      if (!left && !right && held && drag) {
+        const target = held.follow && drag.worldAt ? drag.worldAt(held.px) : held.shipX + (held.px - held.startPx) * drag.worldPerPx;
+        horizontal = dragSteer(target, drag.shipX);
+      }
       const frame: InputFrame = { horizontal, specialPressed, pausePressed };
       specialPressed = false;
       pausePressed = false;
@@ -89,13 +109,14 @@ export function createControlState() {
   };
 }
 
-/** `shipX`: the flying ship's x (null when no flight), which drag steering anchors to. */
-export function createInput(surface: HTMLElement, specialButton: HTMLButtonElement, tilt?: TiltSource, shipX?: () => number | null): GameInput {
+/** `flight`: the flying ship's x and the camera's (null when no flight), which Drag and Follow steering anchor to. */
+export function createInput(surface: HTMLElement, specialButton: HTMLButtonElement, tilt?: TiltSource,
+  flight?: () => { shipX: number; cameraX: number } | null): GameInput {
   const state = createControlState();
   const abort = new AbortController();
   const options = { signal: abort.signal };
   const active = () => surface.dataset.inputActive !== 'false';
-  const dragMode = () => tilt?.mode === 'drag';
+  const dragMode = () => tilt?.mode === 'drag' || tilt?.mode === 'follow';
   const isField = (target: EventTarget | null) => target instanceof Element &&
     !!target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]');
   const capture = (element: HTMLElement, id: number) => {
@@ -113,7 +134,7 @@ export function createInput(surface: HTMLElement, specialButton: HTMLButtonEleme
     if (event.clientX < rect.left || event.clientX > rect.right ||
         event.clientY < rect.top || event.clientY > rect.bottom) return;
     event.preventDefault();
-    if (dragMode()) state.dragDown(event.pointerId, event.clientX, shipX?.() ?? null);
+    if (dragMode()) state.dragDown(event.pointerId, event.clientX, flight?.()?.shipX ?? null, tilt?.mode === 'follow');
     else state.pointerDown(event.pointerId, event.clientX < rect.left + rect.width / 2 ? 'left' : 'right');
     capture(surface, event.pointerId);
     surface.focus({ preventScroll: true });
@@ -178,9 +199,12 @@ export function createInput(surface: HTMLElement, specialButton: HTMLButtonEleme
     sample() {
       if (!active()) state.clear();
       // Measured only while a drag finger is held: a layout read every frame would cost every mode on every phone.
-      const x = dragMode() && state.dragging() ? shipX?.() ?? null : null;
-      const width = x === null ? 0 : surface.getBoundingClientRect().width;
-      const frame = state.sample(x === null || width <= 0 ? undefined : { shipX: x, worldPerPx: VIEW.width * DRAG_GAIN / width });
+      const now = dragMode() && state.dragging() ? flight?.() ?? null : null;
+      const rect = now === null ? null : surface.getBoundingClientRect();
+      const frame = state.sample(now === null || !rect || rect.width <= 0 ? undefined : {
+        shipX: now.shipX, worldPerPx: VIEW.width * DRAG_GAIN / rect.width,
+        worldAt: px => followTarget((px - rect.left) / rect.width, now.cameraX),
+      });
       // Tilt steering (optional): a held half or key wins, otherwise the phone's lean steers.
       if (frame.horizontal === 0 && tilt) frame.horizontal = tilt.value();
       return frame;

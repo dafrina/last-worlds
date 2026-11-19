@@ -766,6 +766,10 @@ button:disabled { cursor: default; }
 .settings-list .selector [role="radio"][aria-checked="true"], .settings-group .selector [role="radio"][aria-checked="true"] {
   background: linear-gradient(180deg, #d9eeff, #9fcff5); color: #061427; box-shadow: 0 0 10px #6fc3ff44;
 }
+/* Steering has four choices (Halves, Drag, Follow, Tilt): its selector takes its own full-width line under the label. */
+.steering-setting .settings-group > div { flex-wrap: wrap; row-gap: 8px; padding-top: 12px; padding-bottom: 12px; }
+.steering-setting .settings-group .selector { width: 100%; }
+.steering-setting .settings-group .selector [role="radio"] { flex: 1; }
 .settings-panel h2 { margin-bottom: 0; }
 .settings-panel .settings-heading:first-of-type { margin-top: 18px; }
 

@@ -56,12 +56,13 @@ describe('steering mode storage', () => {
     expect(readSteeringMode(storage)).toBe('touch');
     writeSteeringMode(storage, 'drag'); expect(readSteeringMode(storage)).toBe('drag');
     writeSteeringMode(storage, 'tilt'); expect(readSteeringMode(storage)).toBe('tilt');
+    writeSteeringMode(storage, 'follow'); expect(readSteeringMode(storage)).toBe('follow');
     store.set('last-worlds.steering', 'joystick'); expect(readSteeringMode(storage)).toBe('touch');
   });
 });
 
 describe('steering initialization', () => {
-  it.each(['touch', 'drag', 'tilt'] as const)('activates remembered %s immediately on startup', mode => {
+  it.each(['touch', 'drag', 'follow', 'tilt'] as const)('activates remembered %s immediately on startup', mode => {
     vi.stubGlobal('window', new EventTarget());
     vi.stubGlobal('document', new EventTarget());
     vi.stubGlobal('DeviceOrientationEvent', undefined);

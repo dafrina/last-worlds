@@ -1,5 +1,25 @@
 # Build status
 
+## Follow steering; struck bolts reach their target (19–20 November 2026)
+
+- **Struck bolts** (user: "They land but r they visible", then "Sure"): measured at THE CITADEL, the simulation removes a
+  bolt as it touches its target's hit circle, so its last drawn position was 1.35 short of the part's centre (Twin Pulse),
+  about 1.0 (Seeker) and 0.3-1.3 (Fan). Shots were never hidden (every hero shot layer draws without a depth test). A bolt
+  that vanishes beside a target is now drawn for one more tick carried on toward the target's centre, in the frame the
+  target flashes (render only, src/render/scene.ts; the hit and its timing stay the simulation's). Frame-by-frame captures
+  before and after for all three weapons; the look of the bolt is unchanged, so no separate Vesper/Khepri capture.
+
+- **What** (user: "The ship basically follows the touch horizontally ... Just add the fixed speed touch control"): Settings →
+  Steering → Follow. The ship heads for the world x under a held finger at the ship's row (the release lens's exact span),
+  at its usual top speed and acceleration through Drag's `dragSteer`. A finger beyond the camera's dead zone keeps it
+  travelling until the camera reaches the map's edge. Default stays Halves. Decision recorded in docs/08 and AGENTS.md.
+- **Also:** the Steering selector takes its own full-width line (four choices overflowed a 390 px row with Tilt shown).
+  The in-flight hint word reads TOUCH.
+- **Checks:** unit tests for the target mapping, the speed limit (never faster than the halves' top speed), settling
+  under the finger and travel to the map side with the camera; a browser test with CDP touch (a still finger moves the
+  ship, it stops under the finger, a slide back left turns it inside the right half, release stops it). Settings row
+  inspected at 390 px. **Not tested on a phone.**
+
 ## Rail beams strike what they hit; the Slingshot buffed; a map position bar (19 November 2026)
 
 - **Rail beams** (user: "projectiles clipping thru boss ... it goes under the top plateau", THE CITADEL): a Rail Driver slug

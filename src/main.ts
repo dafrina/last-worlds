@@ -190,7 +190,7 @@ const disposeAudioSettings = mountAudioSettings(root, audio);
 // The menu's sounds: one delegated listener for every button, selector and slider (ui-sounds.ts).
 const disposeUiSounds = installUiSounds(root, audio);
 // Drag steering anchors to the ship's x while a flight is up (src/input/controls.ts).
-const input = createInput(ui.surface, ui.specialButton, tilt, () => run?.phase === 'playing' ? run.player.x : null);
+const input = createInput(ui.surface, ui.specialButton, tilt, () => run?.phase === 'playing' ? { shipX: run.player.x, cameraX: run.cameraX } : null);
 let renderer: ReturnType<typeof createRenderer> | undefined;
 try {
   renderer = createRenderer(ui.canvas);

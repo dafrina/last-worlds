@@ -6,8 +6,9 @@
  * DeviceOrientation angles), which holds at any forward pitch the phone is held at. Level is zero; a dead band ignores
  * hand tremor and the lean reaches full steering at about 17°.
  */
-/** `drag` (user, 15 November): the ship follows a held finger relative to where it touched down (src/input/controls.ts). */
-export type SteeringMode = 'touch' | 'tilt' | 'drag';
+/** `drag` (user, 15 November): the ship follows a held finger relative to where it touched down; `follow` (user,
+ *  19 November): it heads for the finger's own x at its usual speed (both in src/input/controls.ts). */
+export type SteeringMode = 'touch' | 'tilt' | 'drag' | 'follow';
 
 const KEY = 'last-worlds.steering';
 /** Gravity share along the screen x axis: below DEAD nothing, FULL and beyond full steering (sin 3° and sin 17.5°). */
@@ -36,7 +37,7 @@ export function tiltSupported(): boolean {
 }
 
 export function readSteeringMode(storage: Storage | undefined): SteeringMode {
-  try { const mode = storage?.getItem(KEY); return mode === 'tilt' || mode === 'drag' ? mode : 'touch'; } catch { return 'touch'; }
+  try { const mode = storage?.getItem(KEY); return mode === 'tilt' || mode === 'drag' || mode === 'follow' ? mode : 'touch'; } catch { return 'touch'; }
 }
 
 export function writeSteeringMode(storage: Storage | undefined, mode: SteeringMode): void {

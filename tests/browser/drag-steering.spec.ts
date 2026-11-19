@@ -37,3 +37,32 @@ test('saved drag steering survives restart, follows motion within a screen half,
   await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await expect.poll(async () => (await snapshot(page)).player.vx, { timeout: 20000 }).toBe(0);
 });
+
+// Follow steering (Settings → Steering → Follow; user, 19 November 2026): the ship heads for the world x under a held
+// finger at its normal speed, wherever it was at touch-down.
+test('follow steering heads for the finger\'s own side position and stops under it', async ({ page, context }) => {
+  test.setTimeout(120000);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
+  const steering = page.getByRole('radiogroup', { name: 'Steering' });
+  await steering.getByRole('radio', { name: 'Follow', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('last-worlds.steering'))).toBe('follow');
+  await page.reload();
+  await page.getByRole('button', { name: 'ENDLESS', exact: true }).click();
+  await flying(page);
+  const frame = (await page.locator('.flight-frame').boundingBox())!;
+  const y = frame.y + frame.height * .85, client = await context.newCDPSession(page);
+  // A touch right of the ship, held still: the ship moves right (Drag would not move until the finger slides).
+  await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ id: 1, x: frame.x + frame.width * .65, y }] });
+  await expect.poll(async () => (await snapshot(page)).player.vx, { timeout: 20000 }).toBeGreaterThan(0);
+  // It settles under the finger, inside the camera's dead zone, so the camera holds still.
+  await expect.poll(async () => (await snapshot(page)).player.x, { timeout: 20000 }).toBeGreaterThan(1.3);
+  await expect.poll(async () => (await snapshot(page)).player.vx, { timeout: 20000 }).toBe(0);
+  const settled = await snapshot(page);
+  expect(settled.player.x).toBeLessThan(2.4);
+  // The finger slides to the left of the ship, still in the right half: Follow turns left, the halves would not.
+  await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ id: 1, x: frame.x + frame.width * .55, y }] });
+  await expect.poll(async () => (await snapshot(page)).player.vx, { timeout: 20000 }).toBeLessThan(0);
+  await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect.poll(async () => (await snapshot(page)).player.vx, { timeout: 20000 }).toBe(0);
+});

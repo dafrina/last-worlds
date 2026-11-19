@@ -504,7 +504,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
   onAction('retry', () => launch({ ...lastConfig, seed: seed() }));
   find('.pause-button').addEventListener('click', () => actions.pause(), options);
   selectorListeners.set('graphics', value => actions.setQuality(value as GraphicsQuality));
-  // Steering: screen halves (default), drag relative to the first touch (touch devices), or tilt (touch devices with a
+  // Steering: screen halves (default), drag relative to the first touch or follow the finger (touch devices), or tilt (touch devices with a
   // motion sensor). The choice is remembered on this browser.
   let steering = readSteeringMode(storage);
   const steeringNote = find<HTMLElement>('.steering-note');
@@ -513,7 +513,7 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     for (const radio of group.querySelectorAll<HTMLElement>('[role="radio"]')) {
       const on = radio.dataset.value === steering; radio.setAttribute('aria-checked', String(on)); radio.tabIndex = on ? 0 : -1;
     }
-    for (const word of hints.querySelectorAll('i')) word.textContent = steering === 'tilt' ? 'TILT' : steering === 'drag' ? 'DRAG' : 'HOLD';
+    for (const word of hints.querySelectorAll('i')) word.textContent = steering === 'tilt' ? 'TILT' : steering === 'drag' ? 'DRAG' : steering === 'follow' ? 'TOUCH' : 'HOLD';
   };
   const touchDevice = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
   if ((touchDevice || tiltSupported() || steering !== 'touch') && actions.setSteering) {
@@ -521,13 +521,14 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
     if (!tiltSupported()) find<HTMLElement>('[data-selector="steering"] [data-value="tilt"]').hidden = true;
     showSteering();
     selectorListeners.set('steering', value => {
-      const mode = value === 'tilt' || value === 'drag' ? value : 'touch';
+      const mode = value === 'tilt' || value === 'drag' || value === 'follow' ? value : 'touch';
       steeringNote.hidden = true;
       void actions.setSteering!(mode).then(ok => {
         steering = ok ? mode : 'touch'; writeSteeringMode(storage, steering); showSteering();
         if (!ok) { steeringNote.textContent = 'Motion access was refused. Allow motion for this site in the browser settings to steer by tilting.'; steeringNote.hidden = false; }
         else if (mode === 'tilt') { steeringNote.textContent = 'Lean the phone left or right to steer. Holding a screen half still steers too.'; steeringNote.hidden = false; }
         else if (mode === 'drag') { steeringNote.textContent = 'Touch anywhere and slide: the ship follows your finger from where you put it down.'; steeringNote.hidden = false; }
+        else if (mode === 'follow') { steeringNote.textContent = 'Touch below the ship: it flies to your finger at its normal speed. Hold near an edge to keep travelling.'; steeringNote.hidden = false; }
       });
     });
   }

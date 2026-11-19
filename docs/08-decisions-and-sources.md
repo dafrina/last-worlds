@@ -355,6 +355,12 @@ User answers after reviewing the merged strike sites and encounter deck:
 - **AGENTS.md invariant 1** now allows this optional, relative, speed-limited mode. The default stays the screen halves, and absolute drag-to-position is still excluded.
 - **Risk:** like tilt, drag gives finer control than the halves, so it may make dodging easier. Fairness and balance are still measured with the discrete inputs.
 
+### 19 November 2026 · Optional Follow steering (user: "add yet another steering mode. The ship basically follows the touch horizontally", then "Just add the fixed speed touch control")
+- **Settings → Steering: Halves (default), Drag, Follow, or Tilt.** Follow is offered with Drag on touch devices; the selector now takes its own line.
+- **How Follow works** (`src/input/controls.ts`, `followTarget`): a held finger's target is the world x under it at the ship's row, through the release lens (`src/shared/lens.ts`). The ship heads there with Drag's `dragSteer`, so at its usual top speed and acceleration and never faster. The camera follows the ship past its 2.5-unit dead zone, so a finger held further out keeps the ship travelling until the camera stops at the map's edge. Keys win; the special button's pointer never steers.
+- **Supersedes** the 15 November line "absolute drag-to-position is still excluded" for this speed-limited option only. Instant or faster-than-normal positioning stays excluded.
+- **Risks:** the finger can cover the ship (the Settings note says to touch below it), and precise positioning may make dodging easier than the halves. Fairness and balance are still measured with the discrete inputs.
+
 ### 6 November 2026 · Mission boards: an easy first five, Untouchable sixth at 100
 - **Every world's board opens with four single-run missions a first flight can clear,** then the long mission (#5) and Untouchable (#6).
   - The reason (user): "the first 5 should all be clearable relatively easy so that the player learns about a good payout from the no hit run early, but has 4 other slots to uncover".
