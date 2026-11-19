@@ -30,7 +30,8 @@ export { STRONGHOLD_FOOTPRINT };
 /** Recoil: how far a gun slides back into its housing when its lane fires, and how fast it runs out again. */
 const RECOIL = { distance: .42, kick: .05, settle: 3.2 } as const;
 /** A broken barrel's sag (radians, nose down) and how long it takes to settle. */
-const SAG = { angle: .34, time: 1.3 } as const;
+// (0.62, about 36 degrees, since 19 November: user, "the damaged cannons ... should tilt down more"; 0.34 before.)
+const SAG = { angle: .62, inward: .3, time: 1.3 } as const;
 /**
  * The awakening (user, 18 November: "Usually the boss walks in but for stationary its so sudden"). Before its fight it
  * stands dormant as the scroll brings it in: its cannons stowed (run in, raised and turned out along the cliff), its lights
@@ -132,15 +133,18 @@ interface Rig {
  */
 /** The fortress's seat (its origin in the world, its scale) for the regrade's edges: one uniform for all its materials. */
 const HOLD_SEAT = { value: new THREE.Vector4(0, 0, 0, 1) };
-function regradeToMountain(material: THREE.MeshStandardMaterial) {
+/** `wreck`: 0 none, 1 a housing (scorched toward its middle), 2 a barrel (scorched along it). */
+function regradeToMountain(material: THREE.MeshStandardMaterial, wreck: 0 | 1 | 2 = 0) {
   if (!material.map || /glow/i.test(material.name)) return;
   material.metalness = 1; material.metalnessMap = null; material.roughness = 1; material.roughnessMap = null; material.envMapIntensity = .9;
   material.onBeforeCompile = shader => {
     shader.uniforms.holdSeat = HOLD_SEAT;
-    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vHoldWorld;')
-      .replace('#include <project_vertex>', '#include <project_vertex>\n  vHoldWorld = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;');
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vHoldWorld;\nvarying vec3 vHoldLocal;')
+      .replace('#include <project_vertex>', '#include <project_vertex>\n  vHoldWorld = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;\n  vHoldLocal = transformed;');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>
 #define SNOW_TRIM vec3( 0.72, 0.69, 0.62 )
+#define HOLD_WRECK ${wreck.toFixed(1)}
+varying vec3 vHoldLocal;
 varying vec3 vHoldWorld; uniform vec4 holdSeat;`)
       .replace('#include <map_fragment>', `#include <map_fragment>
   vec3 holdTexel = diffuseColor.rgb, holdSoft = texture2D( map, vMapUv, 3.0 ).rgb;
@@ -173,7 +177,17 @@ varying vec3 vHoldWorld; uniform vec4 holdSeat;`)
   // snow that measured darker and greyer than the ground's.)
   holdSnow = smoothstep( 0.25, 0.6, max( holdSnow, holdDust ) );
   diffuseColor.rgb = mix( mix( holdMetal, holdSnowColor, holdSnow ), holdTexel, holdKeep );
-  roughnessFactor = mix( 0.38, 1.0, max( holdSnow, holdKeep ) ); metalnessFactor = 0.45 * ( 1.0 - holdSnow ) * ( 1.0 - holdKeep );`)
+  roughnessFactor = mix( 0.38, 1.0, max( holdSnow, holdKeep ) ); metalnessFactor = 0.45 * ( 1.0 - holdSnow ) * ( 1.0 - holdKeep );
+  // A wreck (19 November: "the damaged cannons are dark/black, but where theyre attached its a clear cut"): its own colours
+  // scorched, darkest toward its middle and its broken end, fading to the hull's own toward its rim, so the break is soot on
+  // the same steel and snow, not a black part set into a bright one.
+  if ( HOLD_WRECK > 0.5 ) {
+    // (A housing's centred on its broken front, gone well before its back edge where it meets the hull: centred on its
+    // pivot it left a hard line across its top there, 19 November.)
+    float holdBurn = HOLD_WRECK > 1.5 ? 0.85 : 1.0 - smoothstep( 0.35, 1.35, length( vHoldLocal.xz - vec2( 0.0, 0.55 ) ) );
+    diffuseColor.rgb *= mix( 0.85, 0.22, holdBurn ) * mix( 1.0, 0.7, ( 1.0 - holdSnow ) * holdBurn );
+    roughnessFactor = mix( roughnessFactor, 1.0, holdBurn ); metalnessFactor *= 1.0 - 0.7 * holdBurn;
+  }`)
 
       // (The snow takes the ground's environment light, 0.18 of the infra's 0.9.)
       .replace('#include <lights_fragment_maps>', `#include <lights_fragment_maps>
@@ -184,7 +198,7 @@ varying vec3 vHoldWorld; uniform vec4 holdSeat;`)
     radiance *= mix( 1.0, 0.2, holdSnow );
   #endif`);
   };
-  material.customProgramCacheKey = () => 'stronghold-regrade';
+  material.customProgramCacheKey = () => `stronghold-regrade-${wreck}`;
   material.needsUpdate = true;
 }
 
@@ -196,10 +210,16 @@ function modelRig(model: THREE.Group): Rig {
   const fallback = new THREE.MeshStandardMaterial({ color: 0x140804, emissive: 0xff7a26, emissiveIntensity: 1.2, toneMapped: false });
   const regraded = new Set<THREE.Material>();
   model.traverse(object => {
-    if (!(object instanceof THREE.Mesh) || object.name.endsWith('_wreck') || object.parent?.name.endsWith('_wreck')) return;
+    if (!(object instanceof THREE.Mesh)) return;
+    const wreck: 0 | 1 | 2 = /gun_(left|right)_wreck$/.test(object.name) ? 2 : object.name.endsWith('_wreck') || object.parent?.name.endsWith('_wreck') ? 1 : 0;
+    // (A barrel's wreck its own copy: its scorch runs along it.)
+    if (wreck === 2 && !Array.isArray(object.material)) object.material = object.material.clone();
     for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
       if (regraded.has(material) || !(material instanceof THREE.MeshStandardMaterial)) continue;
-      regraded.add(material); regradeToMountain(material);
+      regraded.add(material);
+      // (A wreck's copy left near-black by the shared helper takes its colour back; the scorch is the regrade's.)
+      if (wreck) material.color.setScalar(1);
+      regradeToMountain(material, wreck);
     }
   });
   const guns = new Map<'left' | 'right', Gun>();
@@ -393,7 +413,7 @@ export function createStrongholdView(scene: THREE.Scene) {
         for (const [side, gun] of rig.guns) {
           gun.live.visible = intact; if (gun.wreck) gun.wreck.visible = !intact;
           if (gun.gun) stow(gun, side, intact ? 0 : 1, intact ? 0 : 1, 0);
-          if (gun.gunWreck) gun.gunWreck.rotation.x = SAG.angle * 1.4;
+          if (gun.gunWreck) gun.gunWreck.rotation.set(SAG.angle * 1.15, (side === 'left' ? 1 : -1) * SAG.inward, 0);
           gun.heat.emissiveIntensity = intact ? AWAKEN.dormant : 0;
         }
         if (rig.core.live) rig.core.live.visible = intact; if (rig.core.wreck) rig.core.wreck.visible = !intact;
@@ -482,8 +502,13 @@ export function createStrongholdView(scene: THREE.Scene) {
             const p = gun.wreck ? gun.wreck.getWorldPosition(world) : spot;
             if (hash(state.time * 7 + enemy.id) < .55) smoke(p, state.time * 31 + enemy.id, 1); else steam(p, state.time * 31 + enemy.id, .9);
           }
-          if (gun.gunWreck) gun.gunWreck.rotation.x = !living ? SAG.angle * (THREE.MathUtils.smoothstep(died, 0, SAG.time) + .12 * Math.sin(Math.min(died, SAG.time) / SAG.time * Math.PI) * Math.exp(-died))
-            + (destroyed ? SAG.angle * .4 * THREE.MathUtils.smoothstep(phaseAge, 1, 2) : 0) : 0;
+          if (gun.gunWreck) {
+            const fall = !living ? THREE.MathUtils.smoothstep(died, 0, SAG.time) : 0;
+            gun.gunWreck.rotation.x = !living ? SAG.angle * (fall + .12 * Math.sin(Math.min(died, SAG.time) / SAG.time * Math.PI) * Math.exp(-died))
+              + (destroyed ? SAG.angle * .4 * THREE.MathUtils.smoothstep(phaseAge, 1, 2) : 0) : 0;
+            // (Drooping inward too, toward the fortress's middle: user, "make them sag inwards maybe, like a bit diagonal".)
+            gun.gunWreck.rotation.y = (part === 'left' ? 1 : -1) * SAG.inward * fall;
+          }
           // Charge and fire: the lane on its column is marked (charging), then live (it fires).
           const charging = living && isLane(state, enemy.x, false), firing = living && isLane(state, enemy.x, true);
           if (firing && !gun.live0) {

@@ -1573,7 +1573,12 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   };
   /** The hero's place, size and roll this frame; returns how far its mission-start entrance has played (0 to 1). */
   function poseHero(state: RunState): number {
-    hero.visible = state.player.lives > 0 && heroShown === heroKey;
+    // While it cannot be hit (after a hit, a respawn, a special) the ship flickers, the genre's cue (user, 19 November: the
+    // thin ring that marked it sat under the shield shell, invisible: "add the flicker instead"); 12 Hz, render only, on the
+    // simulation's clock. Not through a jump's warp, nor with reduced motion (the ring marks it then).
+    // (Never for an endless grace: the look-dev fast-forward's, src/dev-hooks.ts advance.)
+    const graced = state.time < state.player.invulnerableUntil && Number.isFinite(state.player.invulnerableUntil) && !state.jump && !reducedMotion();
+    hero.visible = state.player.lives > 0 && heroShown === heroKey && !(graced && Math.floor(state.time * 12) % 2 === 1);
     // Mission-start entrance (render-only): the hero starts close to the camera (large, out along the view ray, so it
     // keeps its screen position under the orthographic lens) and drops to flight height with one barrel roll.
     // Under the launch warp the hero cruises in that start pose, over the veil; the flight starts at the warp's breakout,
@@ -1821,9 +1826,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       const heroAlive = state.player.lives > 0;
       const entrance = poseHero(state);
       shield.position.set(state.player.x, VIEW.flightHeight + .03 + heroClimb, 0);
-      shield.visible = heroAlive && state.time < state.player.invulnerableUntil;
+      // (The ring marks the grace only with reduced motion, instead of the flicker, and brighter: at 0.34 under the shield
+      // shell it went unseen.)
+      shield.visible = heroAlive && state.time < state.player.invulnerableUntil && reducedMotion();
       shieldMaterial.color.setHex(heroGlow);
-      shieldMaterial.opacity = .34;
+      shieldMaterial.opacity = .75;
       {
         const { energy, grow } = shellEnergy(-1, heroAlive ? state.player.shields : 0, Math.max(1, state.player.maxShields), state.player.lastHitAt, state.time);
         heroShell.visible = heroAlive && entrance > .9 && energy > 0;

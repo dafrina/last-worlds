@@ -48,6 +48,8 @@ export function createDevHooks(host: DevHooksHost) {
     // Look-dev only: fast-forward the flight (invulnerable) and destroy the boss, to capture boss endings.
     // `exposed` (look-dev captures of enemy fire) keeps the ship vulnerable: enemies hold fire on an invulnerable ship.
     advance: (seconds: number, exposed = false) => { const run = host.run(); if (!run) return; const until = run.time + seconds; run.player.invulnerableUntil = exposed ? Math.min(run.player.invulnerableUntil, run.time) : Infinity; while (run.time < until && run.phase === 'playing') stepRun(run, { horizontal: 0, specialPressed: false, pausePressed: false }, STEP); },
+    // Look-dev only: a grace period of `seconds` from now, as after a hit (the hero's flicker, src/render/scene.ts poseHero).
+    grace: (seconds: number) => { const run = host.run(); if (run) run.player.invulnerableUntil = run.time + seconds; },
     // Look-dev only: launch a flight with any config (a campaign loadout without a save), and fire the special.
     launch: (config: RunConfig) => { void host.start(config); },
     special: () => { const run = host.run(); if (run?.phase === 'playing') { run.player.specialCharge = 1; stepRun(run, { horizontal: 0, specialPressed: true, pausePressed: false }, STEP); } },

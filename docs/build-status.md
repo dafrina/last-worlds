@@ -1,5 +1,22 @@
 # Build status
 
+## HELION STRONGHOLD's wrecks revised; the hero flickers while it cannot be hit (19 November 2026)
+
+- **Wrecks** (user: the destroyed cannons "should tilt down more", "make them sag inwards ... a bit diagonal", and "the
+  damaged cannons are dark/black, but where theyre attached its a clear cut"): the barrels sag 36 degrees (19) and turn
+  0.3 rad inward as they fall (src/render/stronghold-view.ts SAG). The wrecks take the fortress's own regrade, scorched:
+  a housing darkest at its broken front, fading out before its back edge where it meets the hull, a barrel along its
+  length (each barrel's wreck its own material copy); the shared helper's near-black is undone for them.
+- **The core opening:** verified in the game: the blast door parts within 0.9 s of the core phase and the reactor shows
+  behind it (captured 0.3, 1.0 and 2.5 s in).
+- **Grace flicker** (user: "is there a grace period after getting hit ... shouldnt we make the hero transparent to
+  indicate that?"): 0.65 s after a shield hit, 2 s after a respawn, 1 s after a special. Its only marker was a thin ring at
+  0.34 opacity under the shield shell, unseen. Now the ship flickers at 12 Hz through it (render only, on the simulation's
+  clock; not through a jump's warp, nor for the look-dev fast-forward's endless grace); with reduced motion the ring marks
+  it instead, at 0.75. A look-dev hook `grace(seconds)` starts one. Verified in real-time play: hidden and shown frames
+  through an 8 s grace, shown throughout after it.
+- **Checks:** typecheck, unit tests, build, browser suite (see the deploy). No phone test.
+
 ## HELION STRONGHOLD's plateaus get stations and pipelines; more cliffs on its mountain (19 November 2026)
 
 - **Infrastructure** (user: "make sure on the empty plateaus before the boss mountain that theres piping and
