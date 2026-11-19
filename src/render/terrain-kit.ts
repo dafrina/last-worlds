@@ -1122,11 +1122,19 @@ float sandOn = 0.0;
 float sandCavity = 0.0;
 if ( sandLook > 0.0 ) {
   vec2 sandP = vLocal.xz;
-  sandOn = smoothstep( 0.05, 0.95, vSandClearance ) * ( 1.0 - smoothstep( 0.0, 0.45, vSurface.z ) ) * ( 1.0 - cliffWall ) * ( 1.0 - smoothstep( 0.05, 0.3, vSurface.y ) );
+  // (On the chasm floor the bed's setback from cliff feet is waived, its own walls are 8 tall and it is narrow: the setback
+  // cleared nearly all of it, 19 November. Its walls themselves stay bare, cliffWall.)
+  float sandFloor = smoothstep( -5.5, -7.5, vLocal.y );
+  sandOn = max( smoothstep( 0.05, 0.95, vSandClearance ), sandFloor ) * ( 1.0 - smoothstep( 0.0, 0.45, vSurface.z ) ) * ( 1.0 - cliffWall ) * ( 1.0 - smoothstep( 0.05, 0.3, vSurface.y ) );
   // Open sand only: the ripples and swells calm round the scenery (the sand itself, its dust and sparkle, stay).
   float sandFree = sandOn * ( 1.0 - smoothstep( 0.05, 0.95, vSandShelter ) );
-  // The phase's world gradient from its screen derivatives: [dx.x dx.z; dy.x dy.z] g = (dFdx u, dFdy u).
+  // (Only where sand lies, 19 November: the noise, phases and their derivatives were evaluated on every ground pixel of
+  // Nahara and thrown away off the sand, on a GPU-bound phone. All of it scales with sandOn, so off the sand nothing changes;
+  // the derivatives are taken from vLocal before the branch.)
+  float sandShade = 0.0, sandDeep = sandFloor;
   vec3 sandDx = dFdx( vLocal ), sandDy = dFdy( vLocal );
+  if ( sandOn > 0.0 ) {
+  // The phase's world gradient from its screen derivatives: [dx.x dx.z; dy.x dy.z] g = (dFdx u, dFdy u).
   float sandDet = sandDx.x * sandDy.z - sandDx.z * sandDy.x, sandInv = abs( sandDet ) > 1e-10 ? 1.0 / sandDet : 0.0;
   // Broad wind bends and smaller erosion patches interrupt and compress the crests in both quality tiers.
   float erosion = khepriNoise( sandP + vec2( 13.1, 0.0 ), 0.5 );
@@ -1136,11 +1144,13 @@ if ( sandLook > 0.0 ) {
   float dune = 6.2831853 * dot( SAND_KD, sandP ) + warp * 0.35;
   vec2 gd = vec2( dFdx( dune ) * sandDy.z - dFdy( dune ) * sandDx.z, dFdy( dune ) * sandDx.x - dFdx( dune ) * sandDy.x ) * sandInv;
   // Broad wind-swept areas blend into smooth sand across several world units.
-  float patchy = smoothstep( 0.3, 0.7, khepriNoise( sandP + vec2( 0.0, 7.7 ), 1.0 / 12.0 ) );
+  // (The chasm floor rippled throughout, its patches never smoothed away: the floor is the sand the wind settles, 19
+  // November.)
+  float patchy = max( smoothstep( 0.3, 0.7, khepriNoise( sandP + vec2( 0.0, 7.7 ), 1.0 / 12.0 ) ), sandDeep * 0.8 );
   // Each octave fades before it aliases: from about seven pixels a ripple to about three and a half.
   float a1 = sandFree * ( 1.0 - smoothstep( 0.9, 1.8, fwidth( u1 ) ) ) * patchy * patchy * mix( 0.8, 1.0, erosion );
   sandSlope = g1 * ( sandSlopeOf( u1 ) * 0.045 * a1 ) + gd * ( cos( dune ) * 0.025 * sandFree );
-  float sandShade = sandProfile( u1 ) * a1;
+  sandShade = sandProfile( u1 ) * a1;
   // Less sky reaches a sheltered trough; the perturbed normal supplies its directional sun shading.
   sandCavity = smoothstep( 0.1, 0.95, -sandProfile( u1 ) ) * a1;
   if ( sandLook > 1.5 ) {
@@ -1150,9 +1160,12 @@ if ( sandLook > 0.0 ) {
     sandSlope += g2 * ( sandSlopeOf( u2 ) * 0.008 * a2 );
     sandShade += sandProfile( u2 ) * a2 * 0.5;
   }
+  }
   // Subtle grain sorting in the troughs complements the sun-lit height field. The ground's pebbly
   // dust grain (the detail map) is mostly lifted off the sand, so the ripples carry its texture.
-  diffuseColor.rgb *= 1.0 + sandShade * 0.10;
+  // (Deeper on the chasm floor, 0.3 from 0.1: it lies in its walls' shadow, where the sun-lit relief that draws the
+  // ripples elsewhere is missing; user, 19 November, "make the canyon floor have sand too".)
+  diffuseColor.rgb *= 1.0 + sandShade * mix( 0.10, 0.3, sandDeep );
 #ifdef USE_MAP
   float sandDust = ( detail - 1.0 ) * detailContrast;
   diffuseColor.rgb *= ( 1.0 + sandDust * ( 1.0 - 0.7 * sandOn ) ) / max( 1.0 + sandDust, 0.2 );
@@ -1164,11 +1177,13 @@ if ( sandLook > 0.0 ) {
  * Each glint is at least about a pixel across (spread by the cell's fwidth, its energy kept), never a single flickering texel.
  */
 const SAND_SPARKLE = `#if NUM_DIR_LIGHTS > 0
-  if ( sandLook > 1.5 ) {
+  // (Its derivative before the branch; the rest only on the sand, which it scales by sandOn: 19 November.)
+  vec2 grainWidth = fwidth( vLocal.xz * 9.0 );
+  if ( sandLook > 1.5 && sandOn > 0.0 ) {
     vec2 grainCell = vLocal.xz * 9.0, grainId = floor( grainCell );
     float r1 = khepriHash( grainId, 324.0 ), r2 = khepriHash( grainId + vec2( 17.0, 0.0 ), 324.0 ), r3 = khepriHash( grainId + vec2( 0.0, 29.0 ), 324.0 );
     vec2 grainSpot = fract( grainCell ) - 0.5 - ( vec2( r2, r3 ) - 0.5 ) * 0.6;
-    float grainSize = 0.16, grainBlur = max( grainSize, length( fwidth( grainCell ) ) * 0.75 );
+    float grainSize = 0.16, grainBlur = max( grainSize, length( grainWidth ) * 0.75 );
     float grain = ( 1.0 - smoothstep( grainBlur * 0.35, grainBlur, length( grainSpot ) ) ) * ( grainSize * grainSize ) / ( grainBlur * grainBlur );
     vec3 grainFacet = normalize( normal + mat3( viewMatrix ) * vec3( r2 - 0.5, 0.0, r3 - 0.5 ) * 0.7 );
     float grainFlash = smoothstep( 0.982, 0.997, dot( grainFacet, normalize( directionalLights[ 0 ].direction + geometryViewDir ) ) ) * step( 0.8, r1 );

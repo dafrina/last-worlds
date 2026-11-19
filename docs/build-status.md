@@ -1,5 +1,29 @@
 # Build status
 
+## GPU savings, Nahara's sand canyon floor, the hero shots' new look (19 November 2026)
+
+The user's iPhone logs (`?perf`, 19 November: Cold Vector, Brood Strike, Silent Empire on High) showed the game GPU-bound,
+not CPU-bound: JS about 3 ms a frame; slow frames 2-6% on Vesper and Amnion, 13-21% on Nahara (its full-screen sand).
+- **Shadow map 1024** (1536): less than half the depth fill every High frame. Side by side on Khepri's hard shadows and on
+  Vesper, no visible difference.
+- **Sand ripples and sparkle only where sand lies** (src/render/terrain-kit.ts): the noise, phases and their derivatives ran
+  on every Nahara ground pixel and were discarded off the sand. Pixel-identical (two Silent Empire frames diffed against two
+  runs of the previous build: the terrain unchanged to the level; only the special button's DOM pulse differs, as between
+  two runs of one build).
+- **Not done:** the canvas without multisampling on High. Low would have to draw through its own multisampled target, which
+  blends before the tone curve, so its transparent effects (the hero's shield shell) turned paler; and iPhones resolve
+  canvas multisampling on chip, so the saving there is small. Bloom stays at full precision (user).
+- **The canyon floor is sand** (user: "make the canyon floor have sand too", the haze kept): shaded sand with drifts instead
+  of 0.8 of the canyon shadow, and the wind ripples on it (the cliff-foot setback waived on the floor; its walls stay bare),
+  stronger there, in its walls' shadow. Nahara's globe re-baked (tools/dev/bake-planet-previews.mjs; its test caught it).
+- **The ship's own shots** (user: "look cheap with the black border ... subtle glow (less than interceptor perk) and some
+  transparency ... Or at least make the black border finer"): all four main weapons share the batch. On Vesper a thin deep
+  blue rim round the saturated cyan (a pale core vanished on the snow); on Luna, Nacre and Umbra an additive cyan halo; on
+  Khepri, Amnion, Corona and Nahara a blended halo in the shot's own pale cyan (added cyan over warm ground read lilac); the
+  core a little translucent and hotter. A 16 × 8 shape for them (the 6-sided one showed every facet on a thin rim).
+- **Checks:** typecheck, unit tests, build, browser suite (see the deploy). The GPU saving is not measured: this machine
+  renders without a GPU; the next phone log shows it. No phone test.
+
 ## The mission selector's globes ship pre-baked (19 November 2026)
 
 The user: "cant we cache the textures so it loads once for all? currently when switching it loads every time for quite a

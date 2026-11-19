@@ -215,7 +215,9 @@ const SUN_ELEVATION = THREE.MathUtils.degToRad(38);
 export const SUN = new THREE.Vector3(SUN_DIRECTION.x, 0, -SUN_DIRECTION.s).normalize().multiplyScalar(Math.cos(SUN_ELEVATION)).setY(Math.sin(SUN_ELEVATION));
 /** Height band that can receive (terrain floor) or cast (scenery, fortress superstructure) shadows. */
 const SHADOW_SLAB = { bottom: TERRAIN_MIN_HEIGHT - .2, top: 3.7 } as const;
-const SHADOW_MAP_SIZE = 1536, SHADOW_LIGHT_DISTANCE = 60;
+// (1024 since 19 November, 1536 before: phone logs showed the game GPU-bound, and the depth fill falls by more than half;
+// user, "lets try the 1k shadow, that would improve the whole game right".)
+const SHADOW_MAP_SIZE = 1024, SHADOW_LIGHT_DISTANCE = 60;
 /**
  * The authored Scrapper is ~1.0 unit wide; the user asked for the hero to fly at the planned top-tier size
  * (1.7 units, docs/04 §9). Render-only: the collision radius is owned by the simulation.
@@ -657,7 +659,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
    * flash), so the switch happens under the flash and never mid-sector.
    */
   /** Bright ground (Vesper's snow) washes out the pale hero bolts: they gain a dark outline and a deeper cyan there. */
-  let brightGround = false;
+  let brightGround = false, coolGround = false;
   /** Lights, grade and fog of a look: cheap, no material changes (the playground tunes these live). */
   const applyLight = (next: PlanetId, look: PlanetLook) => {
     scene.background = new THREE.Color(look.background);
@@ -686,6 +688,7 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
   };
   const applyLook = (next: PlanetId) => {
     brightGround = next === 'vesper';
+    coolGround = next === 'vesper' || next === 'luna' || next === 'nacre' || next === 'umbra';
     planet = next;
     const look = LOOKS[next];
     applyLight(next, look);
@@ -1367,14 +1370,32 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
 
   // Shots never hide behind ground: no depth test, and `transparent` puts them in the last (transparent) list so
   // they draw after roads and other blended ground passes, which would otherwise paint over them.
-  const friendlyMaterial = new THREE.MeshBasicMaterial({ color: 0xbcfff8, depthTest: false, depthWrite: false, transparent: true });
+  const friendlyMaterial = new THREE.MeshBasicMaterial({ color: 0xbcfff8, depthTest: false, depthWrite: false, transparent: true, opacity: .88 });
   // Hostile shot colours per world (a core and a pale centre that the bloom carries): shot-colors.ts `hostileHues`.
   const hostileMaterial = new THREE.MeshBasicMaterial({ color: 0xff8869, depthTest: false, depthWrite: false, transparent: true });
   const hostileCoreMaterial = new THREE.MeshBasicMaterial({ color: 0xffe7c4, depthTest: false, depthWrite: false, transparent: true });
   const projectileGeometry = new THREE.SphereGeometry(1, 6, 4);
-  const friendly = new THREE.InstancedMesh(projectileGeometry, friendlyMaterial, 1024);
-  const friendlyOutlineMaterial = new THREE.MeshBasicMaterial({ color: 0x041624, depthTest: false, depthWrite: false, transparent: true, toneMapped: false });
-  const friendlyOutline = new THREE.InstancedMesh(projectileGeometry, friendlyOutlineMaterial, 1024);
+  // (The ship's own shots on a smoother shape, 16 × 8: on the 6-sided one their thin rim showed every facet as a jagged edge,
+  // 19 November, "the borders now look pixelated".)
+  const boltGeometry = new THREE.SphereGeometry(1, 16, 8);
+  const friendly = new THREE.InstancedMesh(boltGeometry, friendlyMaterial, 1024);
+  // A soft halo round each of the ship's own shots (19 November: "it could use some subtle glow (less than interceptor perk)
+  // and some transparency"): the same instances, larger and faint, added over the scene; one more draw, no extra pass.
+  const friendlyGlowMaterial = new THREE.MeshBasicMaterial({ color: 0x1fc8ff, depthTest: false, depthWrite: false, transparent: true, opacity: .32, blending: THREE.AdditiveBlending, toneMapped: false });
+  const friendlyGlow = new THREE.InstancedMesh(boltGeometry, friendlyGlowMaterial, 1024);
+  friendlyGlow.instanceMatrix.setUsage(THREE.DynamicDrawUsage); friendlyGlow.frustumCulled = false; friendlyGlow.renderOrder = 8;
+  friendlyGlow.count = 0; scene.add(friendlyGlow);
+  // (Over warm ground, a halo in the shot's own pale cyan, blended rather than added: added cyan over rust read lilac.)
+  const friendlyWarmGlowMaterial = new THREE.MeshBasicMaterial({ color: 0xbcfff8, depthTest: false, depthWrite: false, transparent: true, opacity: .22, toneMapped: false });
+  const friendlyWarmGlow = new THREE.InstancedMesh(boltGeometry, friendlyWarmGlowMaterial, 1024);
+  friendlyWarmGlow.instanceMatrix = friendlyGlow.instanceMatrix; friendlyWarmGlow.frustumCulled = false; friendlyWarmGlow.renderOrder = 8;
+  friendlyWarmGlow.count = 0; scene.add(friendlyWarmGlow);
+  // (Its border finer and half see-through since 19 November, user: "the projectiles of the hero ship look cheap with the
+  // black border ... make the black border finer"; still there on Vesper's snow, where it keeps them readable.)
+  // (A deep blue rim rather than a black one, 19 November: "over the white snow its not so good visible" without it, but black
+  // read as cheap; saturated blue still stands off the snow and reads as the shot's own energy.)
+  const friendlyOutlineMaterial = new THREE.MeshBasicMaterial({ color: 0x08357a, depthTest: false, depthWrite: false, transparent: true, opacity: 1, toneMapped: false });
+  const friendlyOutline = new THREE.InstancedMesh(boltGeometry, friendlyOutlineMaterial, 1024);
   friendlyOutline.instanceMatrix.setUsage(THREE.DynamicDrawUsage); friendlyOutline.frustumCulled = false; friendlyOutline.renderOrder = 9;
   friendlyOutline.count = 0; scene.add(friendlyOutline);
   /** A Fracture Wave's wall shots in flight this frame (linked by a band, docs/39). */
@@ -2243,8 +2264,11 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
           transform.rotation.set(0, Math.atan2(at.vx, -at.vs), 0); transform.scale.setScalar(1.25); transform.updateMatrix();
           if (missileCount < missiles.instanceMatrix.count) missiles.setMatrixAt(missileCount++, transform.matrix);
         } else if (sim.friendly) {
+          if (friendlyCount < friendly.instanceMatrix.count) {
+            transform.scale.set(.1 * heat.grow, .05, .36 * heat.grow); transform.updateMatrix(); friendlyGlow.setMatrixAt(friendlyCount, transform.matrix);
+          }
           if (brightGround && friendlyCount < friendly.instanceMatrix.count) {
-            transform.scale.set(.1 * heat.grow, .05, .36 * heat.grow); transform.updateMatrix(); friendlyOutline.setMatrixAt(friendlyCount, transform.matrix);
+            transform.scale.set(.09 * heat.grow, .05, .345 * heat.grow); transform.updateMatrix(); friendlyOutline.setMatrixAt(friendlyCount, transform.matrix);
           }
           transform.scale.set(.045 * heat.grow, .045, .27 * heat.grow); transform.updateMatrix();
           if (friendlyCount < friendly.instanceMatrix.count) friendly.setMatrixAt(friendlyCount++, transform.matrix);
@@ -2273,9 +2297,16 @@ export function createRenderer(canvas: HTMLCanvasElement): GameRenderer {
       }
       if (missiles) liveInstances(missiles, missileCount);
       liveInstances(friendly, friendlyCount); liveInstances(hostile, hostileCount); liveInstances(hostileCores, hostileCount);
-      liveInstances(friendlyOutline, brightGround ? friendlyCount : 0);
+      liveInstances(friendlyOutline, brightGround ? friendlyCount : 0); liveInstances(friendlyGlow, coolGround ? friendlyCount : 0); liveInstances(friendlyWarmGlow, coolGround ? 0 : friendlyCount);
+      // (The halo dimmer on Vesper's snow, where additive light washes out; brighter with the shots' own heat.)
+      // (Only over the cool worlds' ground: over Khepri's warm rust, Amnion's yolk, Corona's plasma and Nahara's sand, additive
+      // cyan read as a muddy lilac ring, 19 November; there the hotter core's own bloom is its glow.)
+      friendlyGlowMaterial.opacity = (brightGround ? .15 : .22) * Math.min(1.6, heat.energy);
+      // (On the snow a saturated cyan inside its deep blue rim: a pale core vanished into the snow, 19 November.)
       friendlyMaterial.color.setHex(brightGround ? 0x1fd2ff : chain > 0 ? 0xd8fffb : 0xbcfff8);
-      if (!brightGround) friendlyMaterial.color.multiplyScalar(heat.energy);
+      // (Hotter than before, 1.5: past the bloom's threshold its core spreads a faint glow of its own, under the
+      // Interceptor's spun-up 2×; user, 19 November, "some subtle glow (less than interceptor perk)".)
+      if (!brightGround) friendlyMaterial.color.multiplyScalar(heat.energy * 1.5);
 
       pickupBatches.forEach(mesh => { mesh.count = 0; });
       for (const pickup of state.pickups) {

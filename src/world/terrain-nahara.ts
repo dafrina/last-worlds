@@ -408,14 +408,16 @@ export const NAHARA_PALETTE = {
 function naharaColor(row: PlanetRow, x: number, point: PlanetPoint & { tone?: number; strata?: number }, _slope: number, _rim: number, out: [number, number, number]) {
   const P = NAHARA_PALETTE, fine = noise(row.seed ^ 0x4a7a, x * 1.3, row.s * 1.3), tone = point.tone ?? 0.5, natural = point.strata ?? 0;
   const high = smoothRange(0.55, 1, point.elevation), deep = 1 - smoothRange(0.05, 0.45, point.elevation);
-  // Drifted sand over the natural ground's flats (large soft patches), never on the built paving.
-  const drift = smoothRange(0.5, 0.75, noise(row.seed ^ 0x4a7b, x * 0.09, row.s * 0.08)) * natural * (1 - deep);
+  // Drifted sand over the natural ground's flats (large soft patches), never on the built paving; on the chasm's floor too.
+  const drift = smoothRange(0.5, 0.75, noise(row.seed ^ 0x4a7b, x * 0.09, row.s * 0.08)) * natural;
   for (let c = 0; c < 3; c++) {
     // The stone's shade (its slab or its stratum); the higher ground lighter and sun-bleached; the chasm floor dark.
     let value = mix(P.sandstone[c], P.sand[c], high * 0.45 + tone * 0.4);
     value = mix(value, P.brown[c], (1 - tone) * 0.35);
     value = mix(value, P.sand[c], drift * 0.5);
-    value = mix(value, P.shadow[c], deep * 0.8);
+    // (The chasm floor is shaded sand under the haze, its ripples reading through it: user, 19 November, "make the canyon
+    // floor have sand too", keeping the haze. It was 0.8 of the near-black canyon shadow before, invisible under the haze.)
+    value = mix(value, mix(P.sand[c], P.shadow[c], 0.42), deep * 0.85);
     out[c] = value * (0.9 + fine * 0.2);
   }
   return out;
