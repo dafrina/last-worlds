@@ -60,7 +60,9 @@ export const SITE_IDS = ['crash-site', 'airfield', 'salvage-yard', 'shield-depot
 export type SiteId = (typeof SITE_IDS)[number];
 export type EnemyKind = 'dart' | 'weaver' | 'turret' | 'lancer' | 'needle' | 'diamond' | 'missile' | 'fuel' | 'pulsar' | 'wraith' | 'skimmer' | 'relic';
 /** `horizontal`: −1 … 1. Touch halves and keys give −1, 0 or 1; tilt steering (src/input/tilt.ts) any share between. */
-export interface InputFrame { horizontal: number; specialPressed: boolean; pausePressed: boolean }
+/** `follow`: the steering is Follow (Settings; src/input/controls.ts), whose camera holds still over a wider dead zone so the
+ *  ship can stop under the finger across most of the screen (BALANCE.camera.followDeadZone). */
+export interface InputFrame { horizontal: number; specialPressed: boolean; pausePressed: boolean; follow?: boolean }
 /**
  * A run's setup. The campaign loadout (weapon, special, shield, ship, rank of the main weapon) applies only to the
  * campaign; createRun gives endless starter equipment and the selected chassis perk.

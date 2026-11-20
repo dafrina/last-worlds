@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DRAG_DEAD, DRAG_RESPONSE, createControlState, dragSteer, followTarget } from '../../src/input/controls';
 import { VIEW } from '../../src/shared/contracts';
+import { BALANCE } from '../../src/content/balance';
 import { createRun, stepRun } from '../../src/sim/game';
 
 describe('pointer and keyboard ownership', () => {
@@ -170,7 +171,7 @@ describe('follow steering (the finger\'s own x at normal speed, user 19 November
     let fastest = 0;
     for (let t = 0; t < seconds * 60; t++) {
       const frame = input.sample({ shipX: state.player.x, ...at(state.cameraX) });
-      stepRun(state, frame); fastest = Math.max(fastest, Math.abs(state.player.vx));
+      stepRun(state, { ...frame, follow: true }); fastest = Math.max(fastest, Math.abs(state.player.vx));
     }
     return { state, fastest };
   };
@@ -181,6 +182,13 @@ describe('follow steering (the finger\'s own x at normal speed, user 19 November
     const { state, fastest } = fly(.65, 2);
     expect(Math.abs(state.player.x - followTarget(.65, state.cameraX))).toBeLessThan(DRAG_DEAD + .02);
     expect(fastest).toBeLessThanOrEqual(Math.abs(halves.player.vx) + 1e-9);
+  });
+  it('stops under a finger 80% across without the view moving (the wider Follow dead zone, user 20 November)', () => {
+    const { state } = fly(.8, 3);
+    expect(state.cameraX).toBe(0);
+    expect(Math.abs(state.player.x - followTarget(.8, 0))).toBeLessThan(DRAG_DEAD + .02);
+    // The halves' narrower dead zone would have panned for a ship this far out.
+    expect(state.player.x).toBeGreaterThan(BALANCE.camera.deadZone);
   });
   it('carries the ship to the map side under a finger held at the edge', () => {
     const { state } = fly(.97, 6);

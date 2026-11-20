@@ -13,7 +13,9 @@ export const BALANCE = {
   /** Balanced Drive at campaign pace 1. Endless scales it with the pace (see PACE). */
   movement: { speed: 12, acceleration: 90, braking: 125 },
   /** Camera follow at pace 1: faster than the fastest proposed drive (Vector, 14 units/s). */
-  camera: { deadZone: 2.5, speed: 17 },
+  // followDeadZone (user, 20 November, Follow steering: the view "scrolls too easily"): with Follow the camera holds still
+  // while the ship is within 4 of its centre, so the ship stops under the finger except in the screen's outer ~14%.
+  camera: { deadZone: 2.5, followDeadZone: 4, speed: 17 },
   shield: { charges: 3, hitInvulnerability: 0.65 },
   shieldSupplies: {
     campaign: { relaxed: [40, 95], standard: [40, 95], veteran: [75] },

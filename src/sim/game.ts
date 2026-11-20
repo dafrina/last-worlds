@@ -76,7 +76,7 @@ export function stepRun(state: RunState, input: InputFrame, dt = STEP): void {
   state.tick += 1;
   state.time += dt;
   updatePace(state, dt);
-  movePlayer(state, input.horizontal, dt);
+  movePlayer(state, input.horizontal, dt, input.follow === true);
   updateDirector(state);
   updateShieldSupplies(state, previousTime);
   updateHunters(state, dt);
@@ -144,7 +144,7 @@ function updatePace(state: RunState, dt: number): void {
   }
 }
 
-function movePlayer(state: RunState, steer: number, dt: number): void {
+function movePlayer(state: RunState, steer: number, dt: number, follow = false): void {
   const player = state.player, horizontal = clamp(Number.isFinite(steer) ? steer : 0, -1, 1);
   // All ships share the same handling; endless scales it with pace.
   const movement = playerKinematics(state);
@@ -154,7 +154,8 @@ function movePlayer(state: RunState, steer: number, dt: number): void {
   if (Math.abs(player.x) >= limit && Math.sign(player.vx) === Math.sign(player.x)) player.vx = 0;
   const offset = player.x - state.cameraX;
   let target = state.cameraX;
-  if (Math.abs(offset) > BALANCE.camera.deadZone) target = player.x - Math.sign(offset) * BALANCE.camera.deadZone;
+  const dead = follow ? BALANCE.camera.followDeadZone : BALANCE.camera.deadZone;
+  if (Math.abs(offset) > dead) target = player.x - Math.sign(offset) * dead;
   const cameraLimit = (VIEW.worldWidth - VIEW.width) / 2;
   state.cameraX = approach(state.cameraX, clamp(target, -cameraLimit, cameraLimit), movement.camera * dt);
 }

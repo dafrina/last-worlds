@@ -24,7 +24,8 @@ export function dragSteer(target: number, shipX: number): number {
  * horizontally ... Just add the fixed speed touch control"). A held finger's target is the world x under it at the
  * ship's row, through the release lens (src/shared/lens.ts), and the ship heads there with dragSteer: its usual top
  * speed and acceleration, never faster. The camera follows the ship, so a finger held further out than the camera's
- * dead zone keeps the ship travelling that way until the camera stops at the map's edge.
+ * dead zone (wider with Follow: BALANCE.camera.followDeadZone) keeps the ship travelling that way until the camera stops
+ * at the map's edge.
  */
 const ROW_HALF_WIDTH = lensRowHalfWidth();
 /** The world x under a finger `share` of the way across the play surface (0 its left edge, 1 its right). */
@@ -207,6 +208,8 @@ export function createInput(surface: HTMLElement, specialButton: HTMLButtonEleme
       });
       // Tilt steering (optional): a held half or key wins, otherwise the phone's lean steers.
       if (frame.horizontal === 0 && tilt) frame.horizontal = tilt.value();
+      // Follow holds the camera over its wider dead zone whether a finger is down or not, so a release never pans it.
+      if (tilt?.mode === 'follow') frame.follow = true;
       return frame;
     },
     clear: state.clear,

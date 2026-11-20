@@ -1,5 +1,15 @@
 # Build status
 
+## Follow steering scrolls only at the edges (20 November 2026)
+
+- **What** (user, testing Follow on the phone: "The scroll seems off ... the space where it starts scrolling is too big",
+  then "Scrolls too easily"): with the 2.5 camera dead zone the ship could stop under the finger only in the middle ~45%
+  of the screen. With Follow selected the camera now holds still within 4 (`BALANCE.camera.followDeadZone`), so the ship
+  stops under the finger except in the outer ~14% each side, which scrolls. Other steering modes keep 2.5. The input
+  frame carries `follow` whenever Follow is selected, so lifting the finger never pans the camera.
+- **Checks:** unit test: a finger 80% across settles under it with the camera still; the edge still carries the ship to
+  the map side. **Not tested on a phone.**
+
 ## Follow steering; struck bolts reach their target (19–20 November 2026)
 
 - **Struck bolts** (user: "They land but r they visible", then "Sure"): measured at THE CITADEL, the simulation removes a

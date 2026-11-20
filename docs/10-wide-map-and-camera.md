@@ -27,7 +27,7 @@ the whole frame accepts steering; orientation changes clear held input (`tests/b
 ## 2. Lateral camera
 
 Camera x is explicit fixed-step simulation state driven by the ship's world x (`RunState.cameraX`), not a DOM scroll or a
-renderer guess. While the ship stays within `BALANCE.camera.deadZone` of the camera centre the camera holds still; beyond
+renderer guess. While the ship stays within `BALANCE.camera.deadZone` of the camera centre (`followDeadZone`, 4, with Follow steering, docs/08) the camera holds still; beyond
 it the camera follows to keep the ship at the dead-zone edge, clamped to the map, at up to the pace-scaled camera speed
 (`kinematics` in `src/content/balance.ts`), faster than the ship. The renderer may ease presentation; visibility follows the
 simulation camera.

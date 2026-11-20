@@ -325,7 +325,8 @@ function frame(now: number) {
       const replayed = bench?.replay?.[run.tick];
       if (bench?.noFire || autopilot?.noFire) run.projectiles = run.projectiles.filter(shot => !shot.friendly);
       stepRun(run, { horizontal: replayed !== undefined ? (replayed === 'l' ? -1 : replayed === 'r' ? 1 : 0) : bench ? benchSteer(run.tick, run.player.x)
-        : autopilot ? autopilotInput(run) : controls.horizontal, specialPressed: pendingSpecial, pausePressed: false }, STEP);
+        : autopilot ? autopilotInput(run) : controls.horizontal, specialPressed: pendingSpecial, pausePressed: false,
+        ...(controls.follow && !bench && !autopilot ? { follow: true } : {}) }, STEP);
       if (bench?.noFire || autopilot?.noFire) run.projectiles = run.projectiles.filter(shot => !shot.friendly);
       pendingSpecial = false;
       accumulator -= STEP;
