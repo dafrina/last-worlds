@@ -176,7 +176,10 @@ export const WORLD_MISSIONS: Readonly<Record<MissionId, readonly WorldMission[]>
     airSuperiority(55, 25),
     long('pearl-diver', 'Pearl Diver', 'Collect 1,000 credits, across runs.', 1000, { kind: 'credits' }),
     untouchable('Deep Bloom'),
-    collector(330, 50),
+    // 265 (330 until 20 November): set on 4 November at Nacre's coin scale 0.48; the 8 November cut to 0.384 left it out
+    // of reach below Veteran even for the perfect coin-chasing pilot (Standard 294-327). 330 × 0.8, in line with the other
+    // worlds: the perfect pilot reaches it on every Standard seed (user: "Yeah fix the coin collector").
+    collector(265, 50),
     { slug: 'three-paths', name: 'Three Paths', text: 'Destroy 3 strike sites in one run.', goal: 3, credits: 25, parts: 0, difficulty: 'relaxed', ...run({ kind: 'sites' }) },
     { slug: 'seeker-sweep', name: 'Seeker Sweep', text: 'Down 12 airborne enemies over open water with Seeker Array fire.', goal: 12, credits: 50, parts: 0, difficulty: 'relaxed', ...run({ kind: 'air-water', weapon: 'seeker' }) },
     // THE VEIL's bays are launch points, not targets: this counts the pods they launch (docs/35 § 4).

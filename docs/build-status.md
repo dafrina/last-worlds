@@ -1,5 +1,15 @@
 # Build status
 
+## Nacre's Collector goal 330 → 265 (20 November 2026)
+
+- **Why** (user: "unable to collect 330 on nacre ... full blast collecting ... got 289", then "Yeah fix the coin collector"):
+  the goal was set on 4 November at Nacre's coin scale 0.48; the 8 November cut to 0.384 left it unchanged. Measured, the
+  coin-chasing perfect pilot (Scrapper, level-5 Fan, seeds 1-6): Relaxed 259-283, Standard 294-327, only Veteran reaches
+  330. Every other world's goal is reached on every Standard seed (Luna 70, Khepri 110, Vesper 170, Nahara 380, Umbra
+  400). Now 265 (330 × 0.8): Standard every seed, Relaxed four of six. Collector counts coin pickups only; the first-clear
+  bonus, mission and boss rewards and full-shield credits never counted (unchanged). Pay unchanged (50).
+- **Checks:** Nacre's feasibility test (all twelve within 8 attempts, exact total payout).
+
 ## Follow steering scrolls only at the edges (20 November 2026)
 
 - **What** (user, testing Follow on the phone: "The scroll seems off ... the space where it starts scrolling is too big",

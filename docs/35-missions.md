@@ -125,6 +125,9 @@ take more.
 flies each mission alone with its own loadout and reports per-seed completion.
 
 - No mission is out of reach on its minimum difficulty.
+- Collector (20 November): every world's goal is reached by the coin-chasing perfect pilot (Scrapper, level-5 Fan) on every
+  Standard seed, and on Relaxed on about half or more. Nacre's was 330, set before its coin scale fell to 80% (8 November),
+  which put it out of reach below Veteran (Standard 294-327, Relaxed 259-283); now 265.
 - Several missions need upgrades (Demolition, Air Superiority, Collector and the timed boss goals fall short at Level 1);
   Sunburn needs a top-level weapon.
 - The perfect pilot takes almost no hits, so Untouchable and the no-hit goals are far harder for a person than the tests
