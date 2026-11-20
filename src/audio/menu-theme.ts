@@ -139,17 +139,22 @@ const GROUP = [0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 2, 2], ACCENTS = new Se
 const SWELLS = new Set([1, 12, 16, 29]), CHOIR = new Set([0, 2, 12, 14, 16, 18, 20, 24, 28, 30]);
 
 /** The theme's notes for one sixteenth (it loops every 32 bars). Pure, like the level scores. */
+/** A note at a sixteenth kept clear of the next chord it would grind against (`holdFor`): released before it, or null if it
+ * would be too short to sound. Also the melody editor's (src/melody/model.ts), for a lead note it moves. */
+export function fitted(note: Note, step: number): Note | null {
+  const fit = UNPITCHED.has(note.instrument) || note.instrument === 'riser' ? undefined : holdFor(note, wrap(step));
+  if (fit === null) return null;
+  const hold = fit === undefined ? note.hold : note.hold === undefined ? fit : Math.min(fit, note.hold);
+  return hold === undefined ? note : { ...note, hold };
+}
 export function menuStep(step: number): Note[] {
   const s = wrap(step), bar = Math.floor(s / 16), beat = s % 16, section = sectionOf(bar);
   const { tones: pad } = menuChord(s), notes: Note[] = [];
   // Every pitched note keeps clear of the next chord it would grind against (see `holdFor`).
   const add = (instrument: Instrument, pitch: number, gain: number, pan = 0, wet = 0, extra: Partial<Note> = {}) => {
-    const note: Note = { instrument, pitch, gain, pan, wet, ...extra };
-    const fit = UNPITCHED.has(instrument) || instrument === 'riser' ? undefined : holdFor(note, s);
-    if (fit === null) return false;
-    const hold = fit === undefined ? note.hold : note.hold === undefined ? fit : Math.min(fit, note.hold);
-    notes.push(hold === undefined ? note : { ...note, hold });
-    return true;
+    const note = fitted({ instrument, pitch, gain, pan, wet, ...extra }, s);
+    if (note) notes.push(note);
+    return note !== null;
   };
   const big = section === 'hook2', hook = section === 'hook' || big, b = section === 'b', turn = section === 'turn';
   const bass = 33 + ((pad[0] % 12) - 9 + 12) % 12, drum = 36 + pad[0] % 12;

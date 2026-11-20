@@ -1,5 +1,23 @@
 # Build status
 
+## Melody editor (20 November 2026)
+
+- **What** (user: "a midi score tool in the browser where i can fix some of the main melodies of the songs played. So i
+  can adjust and you incorporate it"): `melody.html` (dev server: http://localhost:4189/melody.html; also built). A piano
+  roll over a song's lead for its 32 bars, with each bar's chord and mode shaded on the rows, played through the game's
+  own mixer and instruments with the rest of the arrangement (A/B against the original, lead only, loop bars). Add, move,
+  delete, transpose (quarter tones too), level, copy/paste, undo. Save writes `lookdev/melody-edits.json` on the dev
+  server (`vite.config.ts` endpoint, like the light playground); the built page downloads the file. A comment per song.
+- **Songs:** the title theme and seven worlds' level themes. Umbra is left out (its lead is reversed swells scheduled
+  ahead of where they land, and its score is frozen); boss stems are not included.
+- **Model** (`src/melody/model.ts`): the lead is read from the real score (`part: 'lead'`, Vesper's bells); notes that
+  double it (Corona's octave, the title theme's strings, stabs and glass) follow an edited note; the title theme's notes
+  are fitted against the next chord as the game does (`fitted`, now exported from `src/audio/menu-theme.ts`, unchanged
+  behaviour). Tested: every song unedited plays exactly the score's notes at all 512 sixteenths. The accompaniment does not
+  re-voice around an edited lead (Khepri's anvil, the boss stems' consonance checks keep following the original).
+- **Checks:** typecheck, 1179 unit tests, build; the page inspected in a browser (Nacre, title theme): adding, moving,
+  playback with the playhead, save to file.
+
 ## Nacre's Collector goal 330 → 265 (20 November 2026)
 
 - **Why** (user: "unable to collect 330 on nacre ... full blast collecting ... got 289", then "Yeah fix the coin collector"):

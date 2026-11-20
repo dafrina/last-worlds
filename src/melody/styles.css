@@ -1,0 +1,32 @@
+:root { color-scheme: dark; --edge: #24405f; --ink: #d6e6f4; --muted: #8fa6bf; --accent: #ffd36e; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #050c17; color: var(--ink); font: 13px/1.4 system-ui, -apple-system, Segoe UI, sans-serif; }
+#melody { display: flex; flex-direction: column; height: 100vh; }
+.mel-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; background: #0a1628; border-bottom: 1px solid var(--edge); }
+.mel-title { font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: #fff; margin-right: 4px; }
+.mel-bar button, .mel-bar select, .mel-bar input[type="number"] {
+  font: inherit; color: var(--ink); background: #0f2138; border: 1px solid var(--edge); border-radius: 6px; padding: 5px 10px;
+}
+.mel-bar input[type="number"] { width: 52px; padding: 4px 6px; }
+.mel-bar button { cursor: pointer; }
+.mel-bar button:hover { border-color: #3d6690; }
+.mel-bar button.primary { background: linear-gradient(180deg, #d9eeff, #9fcff5); color: #061427; border-color: #9fcff5; font-weight: 600; }
+.mel-play { min-width: 84px; font-weight: 600; }
+.mel-play.on { background: #3a1820; border-color: #ff6b6b; }
+.mel-song { min-width: 230px; }
+.mel-field, .mel-check { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.mel-check input { accent-color: #7fd3ff; }
+.mel-seg { display: inline-flex; border: 1px solid var(--edge); border-radius: 6px; overflow: hidden; }
+.mel-seg button { border: 0; border-radius: 0; background: transparent; }
+.mel-seg button.on { background: #9fcff5; color: #061427; }
+.mel-group { display: inline-flex; gap: 6px; }
+.mel-status { color: var(--accent); margin-left: auto; }
+.mel-roll { position: relative; flex: 1; min-height: 240px; }
+.mel-roll canvas { position: absolute; inset: 0; pointer-events: none; }
+.mel-scroll { position: absolute; inset: 0; overflow: auto; outline: none; cursor: crosshair; }
+.mel-spacer { pointer-events: none; }
+.mel-foot { display: grid; grid-template-columns: minmax(220px, 1fr) 2fr; gap: 6px 16px; padding: 10px 14px; background: #0a1628; border-top: 1px solid var(--edge); }
+.mel-info { color: var(--ink); font-variant-numeric: tabular-nums; align-self: center; }
+.mel-comment { font: inherit; color: var(--ink); background: #071224; border: 1px solid var(--edge); border-radius: 6px; padding: 6px 8px; resize: vertical; }
+.mel-help { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 12px; }
+@media (max-width: 760px) { .mel-foot { grid-template-columns: 1fr; } .mel-song { min-width: 0; } }
