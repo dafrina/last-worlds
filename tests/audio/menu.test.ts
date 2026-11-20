@@ -6,6 +6,12 @@ import { MENU_INSTRUMENTS, MENU_THEME, menuChord, menuMelody, menuStep } from '.
 import { SAMPLE_IDS, synthesize, type UiSound } from '../../src/audio/samples';
 
 const STEPS = MENU_THEME.bars * 16;
+/**
+ * The user's own B line (20 November 2026, written in the melody editor: "im really musical and that suits it much much
+ * better as it is now"): D5 over the E♭ chord of bars 15-16 (0-based 14-15), a major seventh against its bass and
+ * strings, and F5, the ninth, on bar 16's downbeat. Deliberate colours: the rules below allow exactly these and no more.
+ */
+const userColour = (step: number, pitch: number) => pitch === 74 && [14, 15].includes(Math.floor(step / 16) % 32);
 const fnv = (text: string) => {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
@@ -20,9 +26,10 @@ const pcm = (id: string) => {
 
 describe('the title theme', () => {
   it('is the approved 32-bar cycle, D minor at 100 BPM, and loops without a seam', () => {
-    // A change here is a change to the composition itself (heroic and mysterious; its melody made familiar, 15 November; its drums refined, 16 November).
+    // A change here is a change to the composition itself (heroic and mysterious; its melody made familiar, 15 November; its drums refined, 16 November;
+    // the user's B line, 20 November).
     const notes = Array.from({ length: STEPS }, (_, s) => menuStep(s));
-    expect([fnv(JSON.stringify(notes)), notes.flat().length]).toEqual(['b7f1370d', 963]);
+    expect([fnv(JSON.stringify(notes)), notes.flat().length]).toEqual(['d58937b4', 967]);
     expect(MENU_THEME).toMatchObject({ bpm: 100, root: 50, bars: 32 });
     for (const s of [0, 37, 255, 511]) expect(menuStep(s + STEPS)).toEqual(menuStep(s));
   });
@@ -46,7 +53,7 @@ describe('the title theme', () => {
       const pitch = menuMelody(s);
       if (pitch === null) continue;
       expect([2, 4, 5, 7, 9, 10, 0], `${s}`).toContain(pitchClass(pitch));
-      if (s % 8 === 0) expect(TRIAD[pitchClass(menuChord(s).root)], `${s} ${pitch}`).toContain(pitchClass(pitch));
+      if (s % 8 === 0 && !(s === 240 && pitch === 77) && !userColour(s, pitch)) expect(TRIAD[pitchClass(menuChord(s).root)], `${s} ${pitch}`).toContain(pitchClass(pitch));
       if (s % 4 < 3) expect(menuMelody(s + 1), `${s}`).toBeNull();
     }
     // Its phrases end home: the hook on D, the B section on A (the dominant), into the hook's pickup.
@@ -63,9 +70,10 @@ describe('the title theme', () => {
     expect(lead.reduce((a, b) => a + b, 0) / MENU_THEME.bars).toBeLessThan(2.5);
   });
   it('has no clash anywhere in its cycle, the accompaniment against itself included, and no note outside its mode', () => {
-    expect(auditMenu()).toEqual([]);
+    expect(auditMenu().filter(c => !((c.a === 'anthem 74' || c.b === 'anthem 74') && userColour(c.step, 74)))).toEqual([]);
     for (let s = 0; s < STEPS; s++) for (const n of menuStep(s)) {
       if (UNPITCHED.has(n.instrument) || n.instrument === 'riser') continue;
+      if (n.instrument === 'anthem' && userColour(s, n.pitch)) continue;
       // A reversed swell belongs to the chord it lands on.
       const { tones, scale } = menuChord(heardWindowAt(MENU_THEME.bpm, n, s).chordStep ?? s), allowed = new Set([...scale, ...tones].map(pitchClass));
       expect(allowed.has(pitchClass(n.pitch)), `${s} ${n.instrument} ${n.pitch}`).toBe(true);
@@ -109,7 +117,7 @@ describe('the title theme', () => {
       if (note.wet > 0) end += .09;
       for (let t = Math.ceil((start + Math.max(0, first - skip) / rate) / thirtySecond) * thirtySecond; t < end; t += thirtySecond) {
         const step = Math.floor(t / sixteenth + 1e-9);
-        if (step >= STEPS && step < 2 * STEPS && grinds(note.pitch, step)) bad.add(`bar ${Math.floor((step - STEPS) / 16)} ${note.instrument} ${note.pitch}`);
+        if (step >= STEPS && step < 2 * STEPS && grinds(note.pitch, step) && !(note.instrument === 'anthem' && userColour(step, note.pitch))) bad.add(`bar ${Math.floor((step - STEPS) / 16)} ${note.instrument} ${note.pitch}`);
       }
     });
     expect([...bad]).toEqual([]);

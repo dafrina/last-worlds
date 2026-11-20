@@ -1,5 +1,17 @@
 # Build status
 
+## The title theme's B section, the user's line (20 November 2026)
+
+- **What** (user, in the melody editor: "just fixed the theme song rest is good"): bars 14-18 (1-based) of the title
+  theme's B section, from `lookdev/melody-edits.json` into `B_LINE` (`src/audio/menu-theme.ts`): bar 14 adds B♭4 and
+  G4 (falling back to G), bar 15 ends on D5 (was C5), bar 16 opens on F5 (was B♭4) and adds D5, bar 18 adds B♭4. The
+  game now plays the saved line note for note (68 notes); the new notes take the theme's phrasing levels (0.080-0.086).
+- **Harmony:** D5 over the E♭ chord of bars 15-16 is a major seventh against its bass and strings, and F5 on bar 16's
+  downbeat is its ninth. The theme's clash rules flagged them; the user chose them ("im really musical and that suits it
+  much much better as it is now"), so `tests/audio/menu.test.ts` allows exactly these notes (`userColour`) and still
+  fails any other clash. Approved-cycle fingerprint updated.
+- **Checks:** typecheck, 1179 unit tests, build, menu browser specs (9).
+
 ## Melody editor (20 November 2026)
 
 - **What** (user: "a midi score tool in the browser where i can fix some of the main melodies of the songs played. So i

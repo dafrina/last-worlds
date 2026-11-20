@@ -93,12 +93,14 @@ const HOOK: readonly (readonly Entry[])[] = [
   [[0, 77], [6, 74], [8, 70]],
   [[0, 69], [6, 72], [8, 74]],
 ];
-/** The B section: long notes on the hook's rhythm at half speed, in two-bar rhymes: up G minor's arpeggio to D, the
- * 5-6-5 turn over E♭ (B♭, C, B♭), up B♭'s arpeggio to D, and down to A (the dominant) for the pickup into the hook. */
+/** The B section: long notes on the hook's rhythm at half speed, in two-bar rhymes: up G minor's arpeggio to D, falling
+ * back through B♭ to G; over E♭ up B♭, D to the F on the downbeat and back to D; up B♭'s arpeggio to D and down to B♭;
+ * then down to A (the dominant) for the pickup into the hook. The user's own line (20 November 2026, in the melody
+ * editor: bars 14-18 of the theme, 1-based). */
 const B_LINE: readonly (readonly Entry[])[] = [
-  [[0, 67], [12, 70]], [[0, 74]],
-  [[0, 70], [12, 72]], [[0, 70]],
-  [[0, 65], [12, 70]], [[0, 74]],
+  [[0, 67], [12, 70]], [[0, 74], [6, 70], [8, 67]],
+  [[0, 70], [12, 74]], [[0, 77], [8, 74]],
+  [[0, 65], [12, 70]], [[0, 74], [8, 70]],
   [[0, 74], [12, 70]], [[0, 69], [14, 57]],
 ];
 /** The glass calling the motif from afar before the hook (the call's 1-5-8). */
