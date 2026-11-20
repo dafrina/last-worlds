@@ -1,5 +1,15 @@
 # Build status
 
+## The title theme starts on a phone's tap (20 November 2026)
+
+- **Cause** (user: "the press to start doesnt start the song still"): sound was started only on `pointerdown` and
+  `keydown`. For a finger, the press is not a user-activation event (HTML: a mouse's pointerdown, but for touch only
+  pointerup and touchend), so the phone refused to start the audio on the splash's tap; the theme began only after some
+  later button click. In desktop Chrome it started 0.1 s after the tap even at 4× CPU slowdown (instruments ready).
+- **Fix** (`src/main.ts`): the same idempotent wake also on `pointerup` and `touchend`.
+- **Checks:** typecheck; audio, menu and tap-to-start browser specs (10). **Not tested on a phone** (the cause matches the
+  standard; the user's phone is the test).
+
 ## The title theme's B section, the user's line (20 November 2026)
 
 - **What** (user, in the melody editor: "just fixed the theme song rest is good"): bars 14-18 (1-based) of the title

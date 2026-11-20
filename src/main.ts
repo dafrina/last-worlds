@@ -219,8 +219,11 @@ window.addEventListener('pointerdown', () => {
 }, { once: true });
 // Resume clicks start a countdown; unlock synchronously on the gesture, before that delayed callback. In the menu, the
 // first interaction is what lets the title theme start (browsers allow sound only after a gesture).
-window.addEventListener('pointerdown', () => { if (run) audio.unlock(); else if (!loadingRun) audio.menu(); });
-window.addEventListener('keydown', () => { if (run) audio.unlock(); else if (!loadingRun) audio.menu(); });
+// A finger's press is not a gesture that may start sound (the HTML user-activation events: a mouse's pointerdown, but for
+// touch only pointerup and touchend), so on phones the theme also starts on the release (user, 20 November: "the press to
+// start doesnt start the song still"). Each call is idempotent.
+const wakeAudio = () => { if (run) audio.unlock(); else if (!loadingRun) audio.menu(); };
+for (const type of ['pointerdown', 'pointerup', 'touchend', 'keydown'] as const) window.addEventListener(type, wakeAudio);
 window.addEventListener('blur', () => { input.clear(); pause('blur'); });
 ui.canvas.addEventListener('webglcontextlost', (event) => {
   event.preventDefault();
