@@ -710,6 +710,9 @@ export function createUi(root: HTMLElement, actions: UiActions): GameUi {
             ...(pay.multiplier !== 1 ? [['DIFFICULTY', `×${pay.multiplier.toFixed(2)}`] as [string, string]] : []),
             ...(pay.firstClear ? [['FIRST CLEAR', `+${pay.firstClear}`] as [string, string]] : [])]
           : [['COLLECTED', `${pay.total}`]];
+        // How many strike sites the flight destroyed (user, 21 November 2026: tells a missed part roll from a site that
+        // never counted).
+        rows.push(['SITES DESTROYED', `${state.sites?.destroyed ?? 0}`]);
         const receipt = find<HTMLElement>('.result-receipt');
         receipt.replaceChildren(...rows.map(([label, value]) => {
           const row = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');

@@ -1,5 +1,25 @@
 # Build status
 
+## Parts sites never drop nothing; sites destroyed on the results (21 November 2026)
+
+- **Why** (user: four Silent Empire runs "going for every site", "not a single part"; then "i only got shields coins or
+  nothing"): a parts site's only loot is its part roll (Step Temple and Crash Site 60%), so a miss dropped nothing and
+  looked broken. Checked: the roll is fair (each site's stated chance over 20,000 seeds, small and 32-bit seeds); a
+  simulated player who goes for each announced site got 14 parts from 19 sites in 8 Silent Empire runs; the part
+  pickup reads on Nahara's sand; a Step Temple's core (on the pyramid's summit) dies and drops its part in the browser.
+  Four runs without a part is about a 1% chance.
+- **Fix** (user chose option 1): a parts site whose roll misses drops 20 credits (scaled by the world, campaign only;
+  `PART_FALLBACK_CREDITS`, src/sim/sites.ts). The results receipt lists SITES DESTROYED. Test: Step Temples over 40 seeds
+  each pay exactly one of a part or the credits.
+- **The stall (not fixed, reverted):** waves wait for clear airspace, and the cues behind them wait too. Measured with a
+  flawless pilot and nothing changed, sites already arrive 10-33 s behind schedule on Deep Bloom, Brood Strike and Final
+  Horizon; parking on a flank before a site's callout makes it worse (Silent Empire seed 1: the Step Temple at 105 s
+  instead of 59 s). Three fixes were tried: moving a due site ahead of a held wave (fairness seal: the held wave then
+  poured in on the site's guns), dropping held waves when a site was due (seals, and waves dropped in ordinary play), and
+  only when a site ran 4 s late (flawless-pilot hits on four missions, because sites run late in ordinary play too). A
+  real fix is a retune of the busy worlds' cue spacing, which changes the approved difficulty.
+- **Dev hooks:** `drop(kind, x, s)` places a pickup; `advance(seconds, exposed, steerTo)` can hold the ship near an x.
+
 ## The title theme starts on a phone's tap (20 November 2026)
 
 - **Cause** (user: "the press to start doesnt start the song still"): sound was started only on `pointerdown` and

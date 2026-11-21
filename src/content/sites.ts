@@ -77,6 +77,8 @@ export const SITE_SCORE = 500;
 export const ENDLESS_PART_SCORE = 1000;
 /** Credits instead of a shield cell when a shield site finds no budgeted supply left to take (src/sim/sites.ts). */
 export const SHIELD_FALLBACK_CREDITS = 10;
+/** Credits when a parts site's part roll misses (user, 21 November 2026: a site never drops nothing; parts stay as rare). */
+export const PART_FALLBACK_CREDITS = 20;
 
 const FRONTIER: readonly PlanetId[] = ['luna', 'khepri', 'vesper'];
 const UMBRAL: readonly PlanetId[] = ['umbra', 'nacre'];

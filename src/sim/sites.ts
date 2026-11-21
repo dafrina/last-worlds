@@ -3,7 +3,7 @@ import { BALANCE } from '../content/balance';
 import { missionBoss } from '../content/bosses';
 import type { EncounterCue } from '../content/encounters';
 import { WEAPON_IDS } from '../content/equipment';
-import { SHIELD_FALLBACK_CREDITS, SITES, SITE_FOOTPRINT, SITE_SCORE, siteMessage, sitePartChance } from '../content/sites';
+import { PART_FALLBACK_CREDITS, SHIELD_FALLBACK_CREDITS, SITES, SITE_FOOTPRINT, SITE_SCORE, siteMessage, sitePartChance } from '../content/sites';
 import { SITE_IDS, VIEW, type Enemy, type Pickup, type RunState, type SiteId, type WeaponId } from '../shared/contracts';
 import { fromFlightPlane, lensEye } from '../shared/lens';
 import { keyedUnit } from '../shared/streams';
@@ -63,12 +63,15 @@ export function destroySiteCore(state: RunState, core: Enemy): void {
   if (!campaign) state.score += definition.endless.score;
   // Campaign: every site rolls for one part (content/sites.ts sitePartChance), besides its own loot.
   const chance = campaign ? sitePartChance(id, state.planet) : null;
-  if (chance !== null && partRoll(state, id, record.destroyed) < chance) drop('part', 1, 0.8);
+  const rolled = chance !== null && partRoll(state, id, record.destroyed) < chance;
+  if (rolled) drop('part', 1, 0.8);
   switch (kind) {
     case 'part':
       // The salvage yard and the sealed vault: their guaranteed parts, one pickup each, side by side. The parts sites'
-      // single part is the roll above.
+      // single part is the roll above; when it misses, credits instead, so a site never drops nothing (user, 21 November
+      // 2026: four Silent Empire runs of shields, coins "or nothing").
       if (definition.loot.value > 1) for (let i = 0; i < definition.loot.value; i++) drop('part', 1, (i - (definition.loot.value - 1) / 2) * 0.8);
+      else if (!rolled) drop('credit', PART_FALLBACK_CREDITS);
       break;
     case 'credit': drop('credit', definition.loot.value); break;
     case 'power': drop('power', 1); break;

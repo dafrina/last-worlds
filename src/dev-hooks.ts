@@ -47,7 +47,15 @@ export function createDevHooks(host: DevHooksHost) {
     // Look-dev only: ends the current flight as lost or complete, to capture the ending sequences.
     // Look-dev only: fast-forward the flight (invulnerable) and destroy the boss, to capture boss endings.
     // `exposed` (look-dev captures of enemy fire) keeps the ship vulnerable: enemies hold fire on an invulnerable ship.
-    advance: (seconds: number, exposed = false) => { const run = host.run(); if (!run) return; const until = run.time + seconds; run.player.invulnerableUntil = exposed ? Math.min(run.player.invulnerableUntil, run.time) : Infinity; while (run.time < until && run.phase === 'playing') stepRun(run, { horizontal: 0, specialPressed: false, pausePressed: false }, STEP); },
+    // `steerTo`: the ship holds near that x while it advances (a capture flying to a site on one side).
+    advance: (seconds: number, exposed = false, steerTo?: number) => {
+      const run = host.run(); if (!run) return; const until = run.time + seconds;
+      run.player.invulnerableUntil = exposed ? Math.min(run.player.invulnerableUntil, run.time) : Infinity;
+      while (run.time < until && run.phase === 'playing') {
+        const gap = steerTo === undefined ? 0 : steerTo - run.player.x;
+        stepRun(run, { horizontal: Math.abs(gap) < .3 ? 0 : Math.sign(gap), specialPressed: false, pausePressed: false }, STEP);
+      }
+    },
     // Look-dev only: a grace period of `seconds` from now, as after a hit (the hero's flicker, src/render/scene.ts poseHero).
     grace: (seconds: number) => { const run = host.run(); if (run) run.player.invulnerableUntil = run.time + seconds; },
     // Look-dev only: launch a flight with any config (a campaign loadout without a save), and fire the special.
@@ -61,6 +69,8 @@ export function createDevHooks(host: DevHooksHost) {
     bossOverload: () => { const run = host.run(); if (!run?.boss) return; for (const part of phaseOneParts(BOSSES[run.boss.id])) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); const core = bossTarget(run, 'core'); if (core) core.hp = core.maxHp * .35; resolveBossPhase(run); },
     killBoss: () => { const run = host.run(); if (!run?.boss) return; for (const part of bossParts(BOSSES[run.boss.id])) { const target = bossTarget(run, part); if (target) target.hp = 0; } resolveBossPhase(run); },
     // Look-dev only: sets off an explosion effect at a flight-plane point (presentation; no damage).
+    // A pickup at (x, s) in the live flight (look-dev: how loot reads over each world's ground).
+    drop: (kind: 'part' | 'credit' | 'shield' | 'power', x: number, s: number) => { const run = host.run(); if (run) run.pickups.push({ id: run.nextId++, kind, x, s, value: 1, ttl: 30 }); },
     boom: (kind: 'explosion' | 'blast' | 'hit', x: number, s: number) => { const run = host.run(); if (run) run.effects.push({ id: run.nextId++, kind, x, s, ttl: .6, duration: .6 }); },
     // Perf bench (tools/perf/bench.mjs): fixed ticks per frame and a scripted weave; `benchStop` returns the frame timings.
     bench: (steps = 1, lives = 5, steerTo?: number) => { host.setBench({ steps, lives, frames: [], ...(steerTo === undefined ? {} : { steerTo }) }); },

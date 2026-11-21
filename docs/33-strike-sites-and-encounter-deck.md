@@ -43,6 +43,9 @@ The user's decisions of 29 and 30 October ([docs/08](08-decisions-and-sources.md
 - **Sites per mission** (30 October: "keep sites 1-4, with 2 being most probable"), **a part roll on every site**
   ("Every site rolls"; lowered on 31 October: "parts drop a bit too much, lower it to 0.2-0.6") and **a deck no harder than
   the fixed lists** ("Tune those down").
+- **A site never drops nothing** (21 November, after four Silent Empire runs of shields, coins "or nothing"): a parts site
+  whose part roll misses drops credits instead (`PART_FALLBACK_CREDITS`, 20 before the world's scale; campaign only).
+  Parts stay as rare. The results screen lists the sites a flight destroyed.
 
 ## 3. Strike sites
 

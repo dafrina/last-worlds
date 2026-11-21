@@ -3,10 +3,11 @@ import { BALANCE, DIFFICULTIES, FUEL_BLAST, GROUND_KINDS, THREAT_COST } from '..
 import { cueRoster, type EncounterCue } from '../../src/content/encounters';
 import { authoredKinds, resolvePlaylist } from '../../src/content/encounter-deck';
 import { FORMATIONS, siteCoreFormation } from '../../src/content/formations';
-import { ENDLESS_PART_SCORE, SHIELD_FALLBACK_CREDITS, SITES, SITE_FOOTPRINT, SITE_SCORE, SITE_X, siteCue, sitePool } from '../../src/content/sites';
+import { ENDLESS_PART_SCORE, PART_FALLBACK_CREDITS, SHIELD_FALLBACK_CREDITS, SITES, SITE_FOOTPRINT, SITE_SCORE, SITE_X, siteCue, sitePool } from '../../src/content/sites';
 import { fromFlightPlane } from '../../src/shared/lens';
 import { EMPTY_INPUT, SITE_IDS, VIEW, type EnemyKind, type PlanetId, type RunConfig, type RunState, type SiteId } from '../../src/shared/contracts';
 import { createRun, spawnFormation, stepRun } from '../../src/sim/game';
+import { destroySiteCore } from '../../src/sim/sites';
 import { enterSector } from './pilots';
 
 const PLANETS: readonly PlanetId[] = ['luna', 'khepri', 'vesper', 'nacre', 'amnion', 'corona', 'nahara', 'umbra'];
@@ -130,6 +131,24 @@ describe('a site core in the simulation', () => {
     expect(state.parts).toBe(3);
   });
 
+  it('a campaign parts site never drops nothing: its part, or credits when its roll misses (user, 21 November)', () => {
+    // Step Temples on Nahara across seeds: each one pays either its part or the fallback credits, never both, never neither.
+    let parts = 0, credits = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const state = quiet({ mode: 'campaign', mission: 'silent-empire', seed });
+      spawnSite(state, 'step-temple', -1);
+      for (let i = 0; i < 60 * 3; i++) stepRun(state, { ...EMPTY_INPUT });
+      // The core destroyed through the game's own path for a core kill (a test shot can be caught by a guard in front).
+      for (const core of cores(state)) { core.hp = 0; destroySiteCore(state, core); }
+      const part = drops(state, 'part').length, fallback = drops(state, 'credit').filter(p => p.value === PART_FALLBACK_CREDITS).length;
+      expect(state.sites).toMatchObject({ destroyed: 1 });
+      expect(part + fallback, `seed ${seed}`).toBe(1);
+      parts += part; credits += fallback;
+    }
+    // About the Step Temple's 60% roll: both outcomes occur.
+    expect(parts).toBeGreaterThan(15);
+    expect(credits).toBeGreaterThan(5);
+  });
   it('in endless a parts site drops a power cell and a score bonus instead, never a part', () => {
     const state = quiet({ mode: 'endless', seed: 3 }, 2);
     spawnSite(state, 'airfield');
